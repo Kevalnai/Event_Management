@@ -24,7 +24,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # --- JWT Functions ---
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token_security(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Creates a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
@@ -46,4 +46,4 @@ def decode_access_token(token: str) -> Optional[dict]:
         return payload
     except jwt.JWTError:
         # This catches expired tokens, invalid signatures, etc.
-        return None
+        return "not verified"
