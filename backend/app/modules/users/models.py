@@ -1,4 +1,4 @@
-# models.py
+# User models.py
 from sqlalchemy import String, DateTime, func, Boolean, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -76,4 +76,4 @@ class PasswordResetToken(Base):
     user = relationship("User", back_populates="password_reset_tokens")
 
     def __repr__(self):
-        return f"PasswordResetToken(id={self.id}, user_id={self.user_id}, used={self.used})"
+        return f"PasswordResetToken(id={self.id}, user_id={self.user_id}, used={self.used})" 
