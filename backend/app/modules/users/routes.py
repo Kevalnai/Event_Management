@@ -7,7 +7,7 @@ from datetime import timedelta
 
 # Relative Imports 
 from ...core.security import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-from ...core.databse import get_db
+from ...core.database import get_db
 from . import repository, schema
 from .schema import UserRegister, UserResponse, Token
 

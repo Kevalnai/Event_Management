@@ -3,12 +3,13 @@
 #  Handles validation & rules
 #  NO FastAPI decorators
 
-from uuid import UUID
+from uuid import UUID, uuid4
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from .models import (
     Event,
+    EventCategory,
     EventSession,
     EventRegistration,
     CheckIn,
@@ -52,14 +53,43 @@ class RBACService:
 
 # -------------------- EVENT SERVICE --------------------
 
+
+
+
 class EventService:
 
+    @staticmethod
+    def get_or_create_category(db: Session, category_id: str | None) -> EventCategory:
+        """
+        Fetch an existing category by ID or create it if it doesn't exist.
+        """
+        category = None
+        if category_id:
+            category = db.get(EventCategory, category_id)
+        
+        if not category:
+            # Create a new category
+            category = EventCategory(
+                category_id=category_id or uuid4(),
+                name=name
+            )
+            db.add(category)
+            db.commit()
+            db.refresh(category)
+        return category
+    
     @staticmethod
     def create_event(
         db: Session,
         payload: EventCreate,
         user_id: UUID
     ) -> Event:
+        
+        category =EventService.get_or_create_category(
+            db,
+            payload.category_id,
+        )
+
         event = Event(
             **payload.model_dump(),
             created_by=user_id

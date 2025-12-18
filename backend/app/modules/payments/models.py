@@ -4,11 +4,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 from uuid import uuid4
 import enum
-# from .base import Base  # your declarative base
+from app.core.database import Base
 
 
-class Base(DeclarativeBase):
-    pass
+
 
 class PaymentStatus(enum.Enum):
     pending = "pending"

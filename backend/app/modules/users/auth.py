@@ -302,7 +302,7 @@ from uuid import UUID
 from typing import Dict
 
 from . import schema, repository
-from ...core.databse import get_db
+from ...core.database import get_db
 from .services import verify_password, hash_password, create_refresh_token
 from .models import User
 from .schema import RefreshTokenRequest

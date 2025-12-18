@@ -3,8 +3,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.databse import engine
+from app.core.database import Base ,engine
+import app.core.model_registry 
 from app.modules.users.models import Base
+from app.modules.events.models import Base
+from app.modules.tickets.models import Base
+from app.modules.payments.models import Base
+from app.modules.scanners.models import Base
 from app.modules.users.auth import router as auth_router
 from app.modules.events.routes import router as event_router
 from app.modules.payments.routes import router as payment_router

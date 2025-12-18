@@ -6,8 +6,10 @@ from datetime import datetime
 from uuid import uuid4
 import enum
 
-class Base(DeclarativeBase):
-    pass
+from ..users.models import User
+from ..tickets.models import Ticket
+
+from app.core.database import Base
 
 class Event(Base):
     """
@@ -35,9 +37,11 @@ class Event(Base):
 
     category_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("categories.category_id"),
+        ForeignKey("event_categories.category_id"),
         nullable=False
     )
+
+  
 
     start_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -66,7 +70,7 @@ class Event(Base):
 
     created_by: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.user_id"),
+        ForeignKey(User.user_id),
         nullable=False
     )
 
@@ -132,11 +136,7 @@ class OrganiserRole(enum.Enum):
 class EventOrganiser(Base):
     __tablename__ = "event_organisers"
 
-    id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
 
     event_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -161,10 +161,10 @@ class EventOrganiser(Base):
         nullable=False
     )
 
-    # relationships
     event = relationship("Event", back_populates="organisers")
-    user = relationship("User", back_populates="organised_events")
+    user = relationship("User", back_populates="event_organisers")
 
+    
 
 class EventSession(Base):
     __tablename__ = "event_sessions"

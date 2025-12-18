@@ -5,9 +5,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 from uuid import uuid4
 
-# Base class for all declarative models
-class Base(DeclarativeBase):
-    pass
+from app.core.database import Base
+
 
 class User(Base):
     """
@@ -18,8 +17,9 @@ class User(Base):
     # Primary Key and Metadata
     # Uses server_default for auto-generation by the database
     user_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid4 #default_factory=uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid4
     )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -27,15 +27,36 @@ class User(Base):
     # Core User Data
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(100), unique=True)
-    role: Mapped[str] = mapped_column(String(20),default="user")
-
+    role: Mapped[str] = mapped_column(String(20), default="user")
+    
     # Security Field (Stored in DB, NOT exposed to clients)
     hashed_password: Mapped[str] = mapped_column(String)
 
+    event_organisers = relationship(
+        "EventOrganiser",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+
+    event_registrations = relationship(
+        "EventRegistration",
+        back_populates="user"
+    )
 
     # relationship to refresh tokens and reset tokens (optional)
-    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan") 
-    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+    
+    refresh_tokens = relationship(
+        "RefreshToken",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    password_reset_tokens = relationship(
+        "PasswordResetToken",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
 
     def __repr__(self):

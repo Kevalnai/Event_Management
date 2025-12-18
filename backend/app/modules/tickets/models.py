@@ -3,9 +3,7 @@ from sqlalchemy.orm import Mapped, DeclarativeBase, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 from uuid import uuid4
-
-class Base(DeclarativeBase):
-    pass
+from app.core.database import Base
 
 class Ticket(Base):
     __tablename__ = "tickets"
