@@ -87,6 +87,8 @@ class Event(Base):
     sessions = relationship("EventSession", back_populates="event")
     registrations = relationship("EventRegistration", back_populates="event")
     organisers = relationship("EventOrganiser", back_populates="event")
+    spayments = relationship("Payment", back_populates="registration", cascade="all, delete-orphan")
+
 
 
 
