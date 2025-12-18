@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr
 from uuid import UUID, uuid4
 from datetime import datetime
 from typing import Optional
@@ -117,9 +117,9 @@ class CheckInRead(CheckInBase):
 
 class EventRegistrationBase(BaseSchema):
     name: str
-    email: str
+    email: EmailStr
     phone: str
-
+    
 
 class EventRegistrationCreate(EventRegistrationBase):
     event_id: UUID
