@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.databse import engine
 from app.modules.users.models import Base
 from app.modules.users.auth import router as auth_router
-
+from app.modules.events.routes import router as event_router
 def create_app():
     app = FastAPI(
         title="Event Management Backend",
@@ -34,6 +34,7 @@ def create_app():
     # Routers
     # -------------------------------
     app.include_router(auth_router)
+    app.include_router(event_router)
 
     @app.get("/", tags=["Root"])
     def root():
