@@ -11,7 +11,7 @@ from ...core.databse import get_db
 from ..users.auth import get_current_user
 
 from .schema import EventCreate
-from .schema import EventSessionCreate
+from .schema import EventSessionCreate, EventRegistrationCreate
 from .schema import CheckInCreate
 
 from .services import (
@@ -126,27 +126,6 @@ def register_for_event(
         payload=payload
     )
 
-
-@router.post(
-    "/{event_id}/register/guest",
-    status_code=status.HTTP_201_CREATED,
-    summary="Register for an event (guest)"
-)
-def register_guest(
-    event_id: UUID,
-    payload: GuestRegistrationCreate,
-    db: Session = Depends(get_db)
-):
-    """
-    Register a guest user for an event.
-
-    - No authentication required
-    """
-    return EventService.register_guest(
-        db=db,
-        event_id=event_id,
-        payload=payload
-    )
 
 # =========================================================
 # EVENT SESSION ROUTES
