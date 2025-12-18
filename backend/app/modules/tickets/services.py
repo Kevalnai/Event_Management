@@ -1,5 +1,6 @@
 import qrcode
 import io
+from uuid import UUID, uuid4
 import base64
 from datetime import datetime
 from sqlalchemy.orm import Session
