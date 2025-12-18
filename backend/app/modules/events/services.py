@@ -1,9 +1,14 @@
+# # Services.py
+#  Uses schemas + repository
+#  Handles validation & rules
+#  NO FastAPI decorators
+
 from uuid import UUID
 from sqlalchemy.orm import Session
 
-from app.models.event import Event
-from app.schemas import EventCreate, EventUpdate
-from app.repositories.event_repository import EventRepository
+from .models import Event
+from .schema import EventCreate, EventUpdate
+from .repository import EventRepository
 
 
 class EventService:
