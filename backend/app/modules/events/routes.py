@@ -20,7 +20,7 @@ from .services import (
     CheckInService
 )
 
-router = APIRouter(prefix="/events", tags=["Events Management"])
+router = APIRouter(prefix="/events", tags=["Events"])
 
 
 # =========================================================
