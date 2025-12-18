@@ -31,7 +31,7 @@ def create_app():
     Base.metadata.create_all(bind=engine)
 
     # -------------------------------
-    # Routers
+    # All Routers
     # -------------------------------
     app.include_router(auth_router)
     app.include_router(event_router)
