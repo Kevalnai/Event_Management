@@ -3,11 +3,6 @@
 # NO FastAPI, NO schemas, NO business rules
 from sqlalchemy.orm import Session
 from uuid import UUID
-from .models import Event
-
-
-from uuid import UUID
-from sqlalchemy.orm import Session
 
 from .models import (
     Event,
