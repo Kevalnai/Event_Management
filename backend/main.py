@@ -8,6 +8,7 @@ from app.modules.users.models import Base
 from app.modules.users.auth import router as auth_router
 from app.modules.events.routes import router as event_router
 from app.modules.payments.routes import router as payment_router
+from app.modules.tickets.routes import router as ticket_router
 def create_app():
     app = FastAPI(
         title="Event Management Backend",
@@ -37,6 +38,7 @@ def create_app():
     app.include_router(auth_router)
     app.include_router(event_router)
     app.include_router(payment_router)
+    app.include_router(ticket_router)
 
     @app.get("/", tags=["Root"])
     def root():

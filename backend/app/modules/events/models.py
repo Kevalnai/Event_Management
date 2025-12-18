@@ -87,7 +87,8 @@ class Event(Base):
     sessions = relationship("EventSession", back_populates="event")
     registrations = relationship("EventRegistration", back_populates="event")
     organisers = relationship("EventOrganiser", back_populates="event")
-    spayments = relationship("Payment", back_populates="registration", cascade="all, delete-orphan")
+
+
 
 
 
@@ -271,6 +272,9 @@ class EventRegistration(Base):
     # relationships
     event = relationship("Event", back_populates="registrations")
     user = relationship("User", back_populates="event_registrations")
+    payments = relationship("Payment", back_populates="registration", cascade="all, delete-orphan")
+    ticket = relationship("Ticket", back_populates="registration", uselist=False)
+
     checkins = relationship(
         "CheckIn",
         back_populates="registration",
