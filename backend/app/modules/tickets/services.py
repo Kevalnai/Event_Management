@@ -4,7 +4,8 @@ from uuid import UUID, uuid4
 import base64
 from datetime import datetime
 from sqlalchemy.orm import Session
-from .models import Ticket, EventRegistration
+from .models import Ticket
+from ..events.models import EventRegistration
 
 class TicketService:
 
