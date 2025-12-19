@@ -35,6 +35,7 @@ def create_app():
     # -------------------------------
     # Database Table Creation
     # -------------------------------
+    
     Base.metadata.create_all(bind=engine)
 
     # -------------------------------

@@ -122,7 +122,6 @@ def register_for_event(
     return EventService.register_user(
         db=db,
         event_id=event_id,
-        user_id=current_user.user_id,
         payload=payload
     )
 
