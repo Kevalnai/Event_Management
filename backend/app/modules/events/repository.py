@@ -18,6 +18,10 @@ from .models import (
 class EventRepository:
 
     @staticmethod
+    def get_all(db: Session):
+        return db.query(Event).all()
+    
+    @staticmethod
     def get_by_id(db: Session, event_id: UUID) -> Event | None:
         return db.query(Event).filter(Event.event_id == event_id).first()
 
@@ -81,6 +85,24 @@ class EventRegistrationRepository:
             .first()
         )
 
+    @staticmethod
+    def create(db: Session, registration: EventRegistration) -> EventRegistration:
+        db.add(registration)
+        db.commit()
+        db.refresh(registration)
+        return registration
+    
+    @staticmethod
+    def get_by_event(
+        db: Session,
+        event_id: UUID
+    ) -> list[EventRegistration]:
+        return (
+            db.query(EventRegistration)
+            .filter(EventRegistration.event_id == event_id)
+            .order_by(EventRegistration.registered_at.desc())
+            .all()
+        )
 
 # -------------------- CHECK-IN --------------------
 
