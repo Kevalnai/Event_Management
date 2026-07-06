@@ -23,7 +23,7 @@ def initiate_payment(payload: PaymentCreate, db: Session = Depends(get_db), curr
 
 
 @router.post("/{payment_id}/complete", response_model=PaymentRead)
-def complete_payment(payment_id: UUID, transaction_id: str, db: Session = Depends(get_db)):
+def complete_payment(payment_id: UUID, transaction_id: UUID, db: Session = Depends(get_db)):
     """
     Mark payment as completed
     """
@@ -31,7 +31,7 @@ def complete_payment(payment_id: UUID, transaction_id: str, db: Session = Depend
 
 
 @router.post("/{payment_id}/fail", response_model=PaymentRead)
-def fail_payment(payment_id: UUID, transaction_id: str, db: Session = Depends(get_db)):
+def fail_payment(payment_id: UUID, transaction_id: UUID, db: Session = Depends(get_db)):
     """
     Mark payment as failed
     """

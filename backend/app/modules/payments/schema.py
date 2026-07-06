@@ -19,6 +19,7 @@ class PaymentRead(BaseModel):
     currency: str
     status: PaymentStatus
     transaction_id: str | None
+    payment_provider: str | None
 
     class Config:
         from_attributes = True

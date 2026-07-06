@@ -5,12 +5,13 @@ from uuid import UUID
 class PaymentRepository:
 
     @staticmethod
-    def create_payment(db, registration_id: UUID, amount: float, currency: str):
+    def create_payment(db, registration_id: UUID, amount: float, currency: str, transaction_id: str):
         from .models import Payment
         payment = Payment(
             registration_id=registration_id,
             amount=amount,
             currency=currency,
+            transaction_id=transaction_id,
             status="pending"
         )
         db.add(payment)

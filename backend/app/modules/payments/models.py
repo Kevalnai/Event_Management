@@ -28,7 +28,7 @@ class Payment(Base):
     )
 
     amount: Mapped[float] = mapped_column(nullable=False)
-    currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=True)
 
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(PaymentStatus, name="payment_status_enum"),
@@ -37,6 +37,7 @@ class Payment(Base):
     ) 
 
     transaction_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    payment_provider: Mapped[str] = mapped_column(String(50), nullable=True)  # optional
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

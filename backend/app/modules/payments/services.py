@@ -1,16 +1,17 @@
-from uuid import UUID
+from uuid import UUID, uuid4
+import uuid
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 class PaymentService:
 
     @staticmethod
-    def initiate_payment(db, registration_id: UUID, amount: float, currency: str = "USD"):
+    def initiate_payment(db, registration_id: UUID, amount: float, currency: str = "USD", transaction_id: str = None):
         """
         Create a payment entry with status 'pending'
         """
         from .repository import PaymentRepository
-        return PaymentRepository.create_payment(db, registration_id, amount, currency)
+        return PaymentRepository.create_payment(db, registration_id, amount, currency, transaction_id)  
 
     @staticmethod
     def complete_payment(db, payment_id: UUID, transaction_id: str):
