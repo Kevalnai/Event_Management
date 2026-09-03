@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Space Grotesk", "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+
+  --color-cream: #faf7f2;
+  --color-cream-dim: #f1ece2;
+  --color-ink: #14121a;
+  --color-ink-soft: #4a4556;
+
+  --color-violet-50: #f4f1ff;
+  --color-violet-100: #e7e0ff;
+  --color-violet-400: #9b7bff;
+  --color-violet-500: #7c4dff;
+  --color-violet-600: #6a2ff0;
+  --color-violet-900: #241a4d;
+
+  --color-coral: #ff6b4a;
+  --color-coral-dim: #ffe4da;
+  --color-lime: #c6f135;
+  --color-fuchsia-pop: #ef4ba8;
+
+  --shadow-soft: 0 1px 2px rgba(20, 18, 26, 0.04), 0 12px 32px -12px rgba(20, 18, 26, 0.12);
+  --shadow-lift: 0 24px 60px -20px rgba(106, 47, 240, 0.35);
+
+  --animate-blob: blob 14s ease-in-out infinite;
+  --animate-marquee: marquee 28s linear infinite;
+}
+
+@keyframes blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(3%, -4%) scale(1.08); }
+  66% { transform: translate(-3%, 3%) scale(0.95); }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+::selection {
+  background: var(--color-lime);
+  color: var(--color-ink);
+}
+
+/* Thin scrollbar for horizontal chip / carousel rows */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--color-cream-dim);
+  border-radius: 999px;
+}
+
+.text-gradient {
+  background-image: linear-gradient(90deg, var(--color-violet-600), var(--color-fuchsia-pop) 55%, var(--color-coral));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-grain {
+  background-image: radial-gradient(circle at 1px 1px, rgba(20,18,26,0.06) 1px, transparent 0);
+  background-size: 22px 22px;
+}

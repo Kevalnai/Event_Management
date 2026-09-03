@@ -10,21 +10,41 @@ from sqlalchemy.orm import Session
 from .models import (
     Event,
     EventCategory,
+    EventOrganiser,
     EventSession,
     EventRegistration,
     CheckIn,
-    OrganiserRole
+    OrganiserRole,
+    RegistrationStatus
 )
 from .repository import (
     EventRepository,
+    EventCategoryRepository,
     EventOrganiserRepository,
     EventSessionRepository,
     EventRegistrationRepository,
     CheckInRepository
 )
-from .schema import EventCreate, EventRegistrationCreate
-from .schema import EventSessionCreate
+from .schema import EventCreate, EventRegistrationCreate, EventOrganiserAdd
+from .schema import EventSessionCreate, EventCategoryCreate
 from .schema import CheckInCreate
+
+
+# -------------------- CATEGORY SERVICE --------------------
+
+class EventCategoryService:
+
+    @staticmethod
+    def create_category(db: Session, payload: EventCategoryCreate) -> EventCategory:
+        existing = EventCategoryRepository.get_by_name(db, payload.name)
+        if existing:
+            return existing
+        category = EventCategory(**payload.model_dump())
+        return EventCategoryRepository.create(db, category)
+
+    @staticmethod
+    def list_categories(db: Session) -> list[EventCategory]:
+        return EventCategoryRepository.get_all(db)
 
 
 # -------------------- RBAC CORE --------------------
@@ -94,7 +114,20 @@ class EventService:
             **payload.model_dump(),
             created_by=user_id
         )
-        return EventRepository.create(db, event)
+        event = EventRepository.create(db, event)
+
+        # The creator is automatically the event's admin organiser,
+        # otherwise no one could ever pass the RBAC checks below.
+        EventOrganiserRepository.create(
+            db,
+            EventOrganiser(
+                event_id=event.event_id,
+                user_id=user_id,
+                role=OrganiserRole.admin
+            )
+        )
+
+        return event
 
     @staticmethod
     def list_events(db: Session) -> list[Event]:
@@ -136,6 +169,7 @@ class EventService:
     def register_user(
         db: Session,
         event_id: UUID,
+        user_id: UUID,
         payload: EventRegistrationCreate
     ) -> EventRegistration:
         event = EventRepository.get_by_id(db, event_id)
@@ -144,15 +178,71 @@ class EventService:
 
         registration = EventRegistration(
             event_id=event_id,
-            user_id=payload.user_id,
+            user_id=user_id,
             name=payload.name,
             email=payload.email,
             phone=payload.phone,
-            qr_code=str(uuid4())
+            qr_code=str(uuid4()),
+            # Free events skip the payment step entirely - Stripe won't even
+            # accept a $0 PaymentIntent, so there's nothing to pay for.
+            status=RegistrationStatus.confirmed if event.price <= 0 else RegistrationStatus.pending
         )
 
         return EventRegistrationRepository.create(db, registration)
 
+
+    @staticmethod
+    def add_organiser(
+        db: Session,
+        event_id: UUID,
+        actor_user_id: UUID,
+        payload: EventOrganiserAdd
+    ) -> EventOrganiser:
+        """
+        Grant (or change) an organiser role on an event.
+        Only an existing admin organiser of the event may do this.
+        """
+        RBACService.require_roles(
+            db,
+            actor_user_id,
+            event_id,
+            allowed_roles=[OrganiserRole.admin]
+        )
+
+        if not EventRepository.get_by_id(db, event_id):
+            raise HTTPException(status_code=404, detail="Event not found")
+
+        existing = EventOrganiserRepository.get_user_role(
+            db, payload.user_id, event_id
+        )
+        if existing:
+            existing.role = payload.role
+            db.commit()
+            db.refresh(existing)
+            return existing
+
+        return EventOrganiserRepository.create(
+            db,
+            EventOrganiser(
+                event_id=event_id,
+                user_id=payload.user_id,
+                role=payload.role
+            )
+        )
+
+    @staticmethod
+    def list_organisers(
+        db: Session,
+        event_id: UUID,
+        user_id: UUID
+    ) -> list[EventOrganiser]:
+        RBACService.require_roles(
+            db,
+            user_id,
+            event_id,
+            allowed_roles=[OrganiserRole.admin, OrganiserRole.staff]
+        )
+        return EventOrganiserRepository.get_by_event(db, event_id)
 
     @staticmethod
     def list_registrations(
@@ -179,6 +269,11 @@ class EventService:
             db=db,
             event_id=event_id
         )
+
+    @staticmethod
+    def list_my_registrations(db: Session, user_id: UUID) -> list[EventRegistration]:
+        """All of the current user's own registrations, across every event."""
+        return EventRegistrationRepository.get_by_user(db, user_id)
 
 
 # -------------------- SESSION SERVICE --------------------

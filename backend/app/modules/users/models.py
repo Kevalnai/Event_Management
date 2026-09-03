@@ -72,6 +72,7 @@ class RefreshToken(Base):
         UUID(as_uuid=True),
         ForeignKey("users.user_id",ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
 
     user = relationship("User", back_populates="refresh_tokens")

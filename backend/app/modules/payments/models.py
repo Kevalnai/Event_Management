@@ -28,15 +28,17 @@ class Payment(Base):
     )
 
     amount: Mapped[float] = mapped_column(nullable=False)
-    currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=True)
+    currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
 
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(PaymentStatus, name="payment_status_enum"),
         default=PaymentStatus.pending,
         nullable=False
-    ) 
+    )
 
-    transaction_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(
+        String(255), unique=True, index=True, nullable=True
+    )
     payment_provider: Mapped[str] = mapped_column(String(50), nullable=True)  # optional
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -10,12 +10,16 @@ from sqlalchemy.orm import Session
 from ...core.database import get_db
 from ..users.auth import get_current_user
 
-from .schema import EventCreate
-from .schema import EventSessionCreate, EventRegistrationCreate
-from .schema import CheckInCreate
+from .schema import EventCreate, EventRead, EventDetail
+from .schema import EventCategoryCreate, EventCategoryRead
+from .schema import EventSessionCreate, EventSessionRead
+from .schema import EventRegistrationCreate, EventRegistrationRead, MyRegistrationRead
+from .schema import CheckInCreate, CheckInRead
+from .schema import EventOrganiserAdd, EventOrganiserRead
 
 from .services import (
     EventService,
+    EventCategoryService,
     EventSessionService,
     CheckInService
 )
@@ -24,11 +28,60 @@ router = APIRouter(prefix="/events", tags=["Events Management"])
 
 
 # =========================================================
+# EVENT CATEGORY ROUTES
+# =========================================================
+
+@router.post(
+    "/categories",
+    response_model=EventCategoryRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an event category"
+)
+def create_category(
+    payload: EventCategoryCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Create an event category (or return the existing one with the same name).
+
+    Needed before creating an event, since every event requires a category_id.
+    """
+    return EventCategoryService.create_category(db, payload)
+
+
+@router.get(
+    "/categories",
+    response_model=list[EventCategoryRead],
+    summary="List event categories"
+)
+def list_categories(db: Session = Depends(get_db)):
+    return EventCategoryService.list_categories(db)
+
+
+# =========================================================
+# "MY REGISTRATIONS" (must be registered before /{event_id})
+# =========================================================
+
+@router.get(
+    "/me/registrations",
+    response_model=list[MyRegistrationRead],
+    summary="List the current user's own registrations/tickets"
+)
+def my_registrations(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    return EventService.list_my_registrations(db, current_user.user_id)
+
+
+# =========================================================
 # EVENT ROUTES
 # =========================================================
 
 @router.get(
     "/",
+    response_model=list[EventRead],
     summary="List all events"
 )
 def list_events(
@@ -45,6 +98,7 @@ def list_events(
 
 @router.get(
     "/{event_id}",
+    response_model=EventDetail,
     summary="Get event details"
 )
 def get_event(
@@ -61,6 +115,7 @@ def get_event(
 
 @router.post(
     "/events",
+    response_model=EventRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new event"
 )
@@ -73,7 +128,7 @@ def create_event(
     Create a new event.
 
     - Any authenticated user can create an event
-    - Creator becomes the event admin (handled in service later if needed)
+    - Creator automatically becomes the event's admin organiser
     """
     return EventService.create_event(
         db=db,
@@ -107,6 +162,7 @@ def delete_event(
 
 @router.post(
     "/{event_id}/register",
+    response_model=EventRegistrationRead,
     status_code=status.HTTP_201_CREATED,
     summary="Register for an event (authenticated user)"
 )
@@ -122,7 +178,55 @@ def register_for_event(
     return EventService.register_user(
         db=db,
         event_id=event_id,
+        user_id=current_user.user_id,
         payload=payload
+    )
+
+
+# =========================================================
+# EVENT ORGANISER ROUTES
+# =========================================================
+
+@router.post(
+    "/{event_id}/organisers",
+    response_model=EventOrganiserRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Grant an organiser role on an event (Admin only)"
+)
+def add_organiser(
+    event_id: UUID,
+    payload: EventOrganiserAdd,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Grant (or change) an admin/staff/volunteer role for a user on this event.
+
+    RBAC:
+    - Only an existing admin organiser of the event can call this.
+    """
+    return EventService.add_organiser(
+        db=db,
+        event_id=event_id,
+        actor_user_id=current_user.user_id,
+        payload=payload
+    )
+
+
+@router.get(
+    "/{event_id}/organisers",
+    response_model=list[EventOrganiserRead],
+    summary="List organisers for an event (Admin/Staff)"
+)
+def list_organisers(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    return EventService.list_organisers(
+        db=db,
+        event_id=event_id,
+        user_id=current_user.user_id
     )
 
 
@@ -132,6 +236,7 @@ def register_for_event(
 
 @router.post(
     "/events/{event_id}/sessions",
+    response_model=EventSessionRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create event session (Admin/Staff)"
 )
@@ -164,6 +269,7 @@ def create_event_session(
 
 @router.post(
     "/events/{event_id}/checkins/{registration_id}",
+    response_model=CheckInRead,
     status_code=status.HTTP_201_CREATED,
     summary="Check-in attendee (Admin/Staff/Volunteer)"
 )
@@ -193,6 +299,7 @@ def check_in_attendee(
 
 @router.get(
     "/{event_id}/registrations",
+    response_model=list[EventRegistrationRead],
     summary="List event registrations (Admin/Staff)"
 )
 def list_registrations(

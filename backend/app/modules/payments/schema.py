@@ -9,8 +9,7 @@ class PaymentStatus(str, Enum):
 
 class PaymentCreate(BaseModel):
     registration_id: UUID
-    amount: float
-    currency: str = "USD"
+
 
 class PaymentRead(BaseModel):
     payment_id: UUID
@@ -18,8 +17,13 @@ class PaymentRead(BaseModel):
     amount: float
     currency: str
     status: PaymentStatus
-    transaction_id: str | None
+    stripe_payment_intent_id: str | None
     payment_provider: str | None
 
     class Config:
         from_attributes = True
+
+
+class PaymentInitiateResponse(BaseModel):
+    payment: PaymentRead
+    client_secret: str

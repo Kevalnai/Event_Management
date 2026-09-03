@@ -1,40 +1,43 @@
-import qrcode
-import io
 from uuid import UUID, uuid4
-import base64
-from datetime import datetime
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
+
 from .models import Ticket
-from ..events.models import EventRegistration
+from .repository import TicketRepository
+from ..events.models import EventRegistration, RegistrationStatus
+
 
 class TicketService:
 
     @staticmethod
-    def generate_ticket(db: Session, registration_id: str) -> Ticket:
-        # Check if registration exists and is paid
+    def generate_ticket(db: Session, registration_id: UUID, user_id: UUID | None) -> Ticket:
         registration = db.query(EventRegistration).filter_by(registration_id=registration_id).first()
         if not registration:
-            raise ValueError("Registration not found")
-        if registration.status != "confirmed":
-            raise ValueError("Payment not completed. Ticket cannot be issued.")
+            raise HTTPException(status_code=404, detail="Registration not found")
 
-        # Generate unique QR code (could be UUID or hash)
+        if registration.user_id and registration.user_id != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized to issue a ticket for this registration"
+            )
+
+        if registration.status != RegistrationStatus.confirmed:
+            raise HTTPException(
+                status_code=400,
+                detail="Payment not completed. Ticket cannot be issued."
+            )
+
+        existing = TicketRepository.get_by_registration_id(db, registration_id)
+        if existing:
+            return existing
+
+        # Unique QR payload identifying this ticket
         qr_data = f"{registration.registration_id}-{uuid4()}"
-        qr_img = qrcode.make(qr_data)
 
-        # Save QR code as base64 (for API response)
-        buffer = io.BytesIO()
-        qr_img.save(buffer, format="PNG")
-        qr_b64 = base64.b64encode(buffer.getvalue()).decode()
-
-        # Save ticket in DB
         ticket = Ticket(
             registration_id=registration.registration_id,
             qr_code=qr_data,
             pdf_url=None  # optional: later generate PDF & store URL
         )
-        db.add(ticket)
-        db.commit()
-        db.refresh(ticket)
 
-        return ticket
+        return TicketRepository.create(db, ticket)

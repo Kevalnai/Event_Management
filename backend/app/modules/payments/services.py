@@ -1,36 +1,154 @@
-from uuid import UUID, uuid4
-import uuid
-from fastapi import HTTPException, status
+import os
+import stripe
+
+from uuid import UUID
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
+
+from .models import PaymentStatus
+from .repository import PaymentRepository
+from ..events.models import EventRegistration
+
+
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
 
 class PaymentService:
 
     @staticmethod
-    def initiate_payment(db, registration_id: UUID, amount: float, currency: str = "USD", transaction_id: str = None):
-        """
-        Create a payment entry with status 'pending'
-        """
-        from .repository import PaymentRepository
-        return PaymentRepository.create_payment(db, registration_id, amount, currency, transaction_id)  
+    def initiate_payment(
+        db: Session,
+        registration_id: UUID,
+        user_id: UUID | None
+    ):
+        registration = (
+            db.query(EventRegistration)
+            .filter(EventRegistration.registration_id == registration_id)
+            .first()
+        )
+
+        if not registration:
+            raise HTTPException(status_code=404, detail="Registration not found")
+
+        if registration.user_id and registration.user_id != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized to pay for this registration"
+            )
+
+        event = registration.event
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found for this registration")
+
+        # Amount is always derived from the event's price, never from the client.
+        amount = event.price
+        currency = event.currency
+
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="This event is free - no payment required")
+
+        # Reuse an existing pending PaymentIntent instead of creating a duplicate.
+        existing_payment = PaymentRepository.get_pending_by_registration(db, registration_id)
+        if existing_payment and existing_payment.stripe_payment_intent_id:
+            try:
+                intent = stripe.PaymentIntent.retrieve(existing_payment.stripe_payment_intent_id)
+            except stripe.error.StripeError as e:
+                raise HTTPException(status_code=502, detail=f"Stripe error: {str(e)}")
+
+            if intent.status != "canceled":
+                return {
+                    "payment": existing_payment,
+                    "client_secret": intent.client_secret
+                }
+
+        # Stripe expects amount in smallest currency unit.
+        # Example: $25.00 -> 2500 cents
+        stripe_amount = int(round(amount * 100))
+
+        try:
+            payment_intent = stripe.PaymentIntent.create(
+                amount=stripe_amount,
+                currency=currency.lower(),
+                metadata={
+                    "registration_id": str(registration_id)
+                },
+                idempotency_key=f"registration-{registration_id}-init"
+            )
+        except stripe.error.StripeError as e:
+            raise HTTPException(status_code=502, detail=f"Stripe error: {str(e)}")
+
+        payment = PaymentRepository.create_payment(
+            db=db,
+            registration_id=registration_id,
+            amount=amount,
+            currency=currency,
+            stripe_payment_intent_id=payment_intent.id,
+            payment_provider="stripe"
+        )
+
+        return {
+            "payment": payment,
+            "client_secret": payment_intent.client_secret
+        }
 
     @staticmethod
-    def complete_payment(db, payment_id: UUID, transaction_id: str):
-        """
-        Mark payment as completed and update registration
-        """
-        from .repository import PaymentRepository
-        payment = PaymentRepository.update_payment_status(db, payment_id, "completed", transaction_id)
+    def handle_payment_success(
+        db: Session,
+        payment_intent
+    ):  
 
-        # Update the registration status to confirmed
-        if payment:
-            from .models import EventRegistration
-            registration = db.query(EventRegistration).filter(EventRegistration.registration_id == payment.registration_id).first()
-            if registration:
-                registration.status = "confirmed"
-                db.commit()
+        stripe_payment_intent_id = payment_intent["id"]
+
+        payment = PaymentRepository.get_by_stripe_payment_intent(
+            db,
+            stripe_payment_intent_id
+        )
+
+        if not payment:
+            return None
+
+        # Prevent duplicate webhook processing
+        if payment.status == PaymentStatus.completed:
+            return payment
+
+        payment.status = PaymentStatus.completed
+
+        registration = (
+            db.query(EventRegistration)
+            .filter(
+                EventRegistration.registration_id
+                == payment.registration_id
+            )
+            .first()
+        )
+
+        if registration:
+            registration.status = "confirmed"
+
+        db.commit()
+        db.refresh(payment)
+
         return payment
 
     @staticmethod
-    def fail_payment(db, payment_id: UUID, transaction_id: str):
-        from .repository import PaymentRepository
-        return PaymentRepository.update_payment_status(db, payment_id, "failed", transaction_id)
+    def handle_payment_failure(
+        db: Session,
+        payment_intent
+    ):
+
+        stripe_payment_intent_id = payment_intent["id"]
+
+        payment = PaymentRepository.get_by_stripe_payment_intent(
+            db,
+            stripe_payment_intent_id
+        )
+
+        if not payment:
+            return None
+
+        payment.status = PaymentStatus.failed
+
+        db.commit()
+        db.refresh(payment)
+
+        return payment

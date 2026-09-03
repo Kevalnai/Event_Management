@@ -10,24 +10,22 @@ from datetime import datetime
 def create_user(db: Session, user: schema.UserRegister):
     """
     Creates a new User record in the database.
+
+    Role is never taken from client input - it always uses the model's
+    default ("user"). Promoting a user is a separate admin-only operation.
     """
-    # 1. Hash the incoming plain password
     hashed_pass = hash_password(user.password)
-    
-    # 2. Create an instance of the SQLAlchemy User Model
-    # We use a dictionary unpack here, passing the hash instead of the plain password
+
     db_user = models.User(
         username=user.username,
         email=user.email,
-        role=user.role,
         hashed_password=hashed_pass # Store the hash, not the plain text!
     )
-    
-    # 3. Add to the session, commit, and refresh to get auto-generated fields (like user_id)
+
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-    
+
     return db_user
 
 # --- Read (Get) User by Email (for checking duplicates) ---
@@ -35,7 +33,6 @@ def get_user_by_email(db: Session, email: str):
     """
     Retrieves a user by their email address.
     """
-    # Use SQLAlchemy 2.0 style select statement
     stmt = select(models.User).where(models.User.email == email)
     return db.execute(stmt).scalars().first()
 
@@ -51,45 +48,9 @@ def get_user_by_username_or_email(db: Session, identifier: str):
     """
     Retrieves a user by username or email.
     """
-    from .models import User  # Import Model locally to avoid circular dependencies
-    
-    # Check for email first
-    stmt = select(User).where(User.email == identifier)
-    user = db.execute(stmt).scalars().first()
-    
-    if user:
-        return user
-        
-    # If not found by email, check for username
-    stmt = select(User).where(User.username == identifier)
-    user = db.execute(stmt).scalars().first()
-    
-    return user
-
-def create_user(db: Session, user: schema.UserRegister):
-    hashed_pass = hash_password(user.password)
-    db_user = models.User(
-    username=user.username,
-    email=user.email,
-    role=user.role,
-    hashed_password=hashed_pass
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-def get_user_by_email(db: Session, email: str):
-    stmt = select(models.User).where(models.User.email == email)
-    return db.execute(stmt).scalars().first()
-
-def get_user_by_username(db: Session, username: str):
-    stmt = select(models.User).where(models.User.username == username)
-    return db.execute(stmt).scalars().first()
-
-def get_user_by_username_or_email(db: Session, identifier: str):
     stmt = select(models.User).where(models.User.email == identifier)
     user = db.execute(stmt).scalars().first()
+
     if user:
         return user
 
@@ -98,8 +59,8 @@ def get_user_by_username_or_email(db: Session, identifier: str):
 
 # ----------------- Refresh token helpers -----------------
 
-def save_refresh_token(db: Session, user_id, token_str: str):
-    rt = models.RefreshToken(token=token_str, user_id=user_id)
+def save_refresh_token(db: Session, user_id, token_str: str, expires_at: datetime):
+    rt = models.RefreshToken(token=token_str, user_id=user_id, expires_at=expires_at)
     db.add(rt)
     db.commit()
     db.refresh(rt)

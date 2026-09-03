@@ -6,11 +6,36 @@ from uuid import UUID
 
 from .models import (
     Event,
+    EventCategory,
     EventOrganiser,
     EventSession,
     EventRegistration,
     CheckIn
 )
+
+
+# -------------------- CATEGORY --------------------
+
+class EventCategoryRepository:
+
+    @staticmethod
+    def get_all(db: Session) -> list[EventCategory]:
+        return db.query(EventCategory).all()
+
+    @staticmethod
+    def get_by_id(db: Session, category_id) -> EventCategory | None:
+        return db.query(EventCategory).filter(EventCategory.category_id == category_id).first()
+
+    @staticmethod
+    def get_by_name(db: Session, name: str) -> EventCategory | None:
+        return db.query(EventCategory).filter(EventCategory.name == name).first()
+
+    @staticmethod
+    def create(db: Session, category: EventCategory) -> EventCategory:
+        db.add(category)
+        db.commit()
+        db.refresh(category)
+        return category
 
 
 # -------------------- EVENT --------------------
@@ -57,6 +82,21 @@ class EventOrganiserRepository:
             .first()
         )
 
+    @staticmethod
+    def create(db: Session, organiser: EventOrganiser) -> EventOrganiser:
+        db.add(organiser)
+        db.commit()
+        db.refresh(organiser)
+        return organiser
+
+    @staticmethod
+    def get_by_event(db: Session, event_id: UUID) -> list[EventOrganiser]:
+        return (
+            db.query(EventOrganiser)
+            .filter(EventOrganiser.event_id == event_id)
+            .all()
+        )
+
 
 # -------------------- SESSION --------------------
 
@@ -92,6 +132,18 @@ class EventRegistrationRepository:
         db.refresh(registration)
         return registration
     
+    @staticmethod
+    def get_by_user(
+        db: Session,
+        user_id: UUID
+    ) -> list[EventRegistration]:
+        return (
+            db.query(EventRegistration)
+            .filter(EventRegistration.user_id == user_id)
+            .order_by(EventRegistration.registered_at.desc())
+            .all()
+        )
+
     @staticmethod
     def get_by_event(
         db: Session,

@@ -1,5 +1,5 @@
 #Event models.py
-from sqlalchemy import String, DateTime, func, Boolean, ForeignKey, Text, Enum
+from sqlalchemy import String, DateTime, Float, func, Boolean, ForeignKey, Text, Enum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -66,6 +66,18 @@ class Event(Base):
     banner_url: Mapped[str] = mapped_column(
         String(255),
         nullable=True
+    )
+
+    price: Mapped[float] = mapped_column(
+        Float,
+        default=0,
+        nullable=False
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(10),
+        default="USD",
+        nullable=False
     )
 
     created_by: Mapped[UUID] = mapped_column(

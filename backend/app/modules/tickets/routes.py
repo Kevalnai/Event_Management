@@ -14,6 +14,11 @@ def issue_ticket(registration_id: UUID, db: Session = Depends(get_db), current_u
     """
     Issue a ticket for a confirmed registration.
 
-    - Only paid registrations can get a ticket
+    - Only paid (confirmed) registrations can get a ticket
+    - Re-calling this for the same registration returns the existing ticket
     """
-    return TicketService.generate_ticket(db=db, registration_id=str(registration_id))
+    return TicketService.generate_ticket(
+        db=db,
+        registration_id=registration_id,
+        user_id=current_user.user_id
+    )

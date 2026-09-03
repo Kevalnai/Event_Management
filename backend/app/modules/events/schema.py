@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import Optional
 from enum import Enum
 
+from ..tickets.schema import TicketRead
+
 
  
 
@@ -65,7 +67,7 @@ class EventSessionBase(BaseSchema):
 
 
 class EventSessionCreate(EventSessionBase):
-    event_id: UUID
+    pass
 
 
 class EventSessionRead(EventSessionBase):
@@ -87,6 +89,11 @@ class EventOrganiserCreate(EventOrganiserBase):
     pass
 
 
+class EventOrganiserAdd(BaseSchema):
+    user_id: UUID
+    role: OrganiserRole
+
+
 class EventOrganiserRead(EventOrganiserBase):
     id: UUID
     added_at: datetime
@@ -102,7 +109,7 @@ class CheckInBase(BaseSchema):
 
 
 class CheckInCreate(CheckInBase):
-    registration_id: UUID
+    pass
 
 
 class CheckInRead(CheckInBase):
@@ -122,8 +129,7 @@ class EventRegistrationBase(BaseSchema):
     
 
 class EventRegistrationCreate(EventRegistrationBase):
-    event_id: UUID
-    user_id: UUID | None = None  # guest registration support
+    pass
 
 
 class EventRegistrationRead(EventRegistrationBase):
@@ -148,6 +154,8 @@ class EventBase(BaseSchema):
     venue: str
     address: str
     banner_url: str | None = None
+    price: float = 0
+    currency: str = "USD"
 
 
 class EventCreate(EventBase):
@@ -163,6 +171,8 @@ class EventUpdate(BaseSchema):
     venue: str | None = None
     address: str | None = None
     banner_url: str | None = None
+    price: float | None = None
+    currency: str | None = None
 
 
 class EventRead(EventBase):
@@ -173,7 +183,26 @@ class EventRead(EventBase):
 
 
 class EventDetail(EventRead):
+    """
+    Public event detail. Deliberately excludes `registrations` and
+    `organisers` - those carry attendee PII / internal role assignments and
+    are only served through the RBAC-gated endpoints
+    (GET /events/{id}/registrations, GET /events/{id}/organisers).
+    """
     category: EventCategoryRead
     sessions: list[EventSessionRead] = []
-    registrations: list[EventRegistrationRead] = []
-    organisers: list[EventOrganiserRead] = []
+
+
+# ======================================================
+# "My registrations" (dashboard) schema
+# ======================================================
+
+class MyRegistrationRead(BaseSchema):
+    """A registration plus the event/ticket context a dashboard needs, so
+    the frontend doesn't have to make one request per registration."""
+    registration_id: UUID
+    status: RegistrationStatus
+    registered_at: datetime
+    qr_code: str
+    event: EventRead
+    ticket: TicketRead | None = None
