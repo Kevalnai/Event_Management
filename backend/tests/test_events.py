@@ -41,6 +41,67 @@ def test_register_for_nonexistent_event_returns_404(client, make_user):
     assert resp.status_code == 404
 
 
+def test_create_event_rejects_non_url_banner(client, make_user):
+    _, headers = make_user("bannerhost1")
+    cat = client.post("/events/categories", json={"name": "BannerCat1"}, headers=headers).json()
+
+    resp = client.post(
+        "/events/events",
+        json={
+            "title": "Bad Banner Event",
+            "category_id": cat["category_id"],
+            "start_date": "2027-01-01T18:00:00Z",
+            "end_date": "2027-01-01T22:00:00Z",
+            "venue": "V",
+            "address": "A",
+            "price": 0,
+            "currency": "USD",
+            "banner_url": "string",  # not a real URL - the exact bad value seen in real data
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+def test_create_event_rejects_negative_price(client, make_user):
+    _, headers = make_user("bannerhost2")
+    cat = client.post("/events/categories", json={"name": "BannerCat2"}, headers=headers).json()
+
+    resp = client.post(
+        "/events/events",
+        json={
+            "title": "Negative Price Event",
+            "category_id": cat["category_id"],
+            "start_date": "2027-01-01T18:00:00Z",
+            "end_date": "2027-01-01T22:00:00Z",
+            "venue": "V",
+            "address": "A",
+            "price": -10,
+            "currency": "USD",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+def test_list_events_respects_limit_and_offset(client, make_user, make_event):
+    _, headers = make_user("pagehost1")
+    for i in range(3):
+        make_event(headers, title=f"Page Event {i}")
+
+    first_page = client.get("/events/?limit=2&offset=0").json()
+    second_page = client.get("/events/?limit=2&offset=2").json()
+
+    assert len(first_page) == 2
+    assert len(second_page) == 1
+    assert {e["event_id"] for e in first_page}.isdisjoint({e["event_id"] for e in second_page})
+
+
+def test_list_events_rejects_oversized_limit(client):
+    resp = client.get("/events/?limit=1000")
+    assert resp.status_code == 422
+
+
 def test_list_and_get_event_are_public(client, make_user, make_event):
     _, headers = make_user("host3")
     event = make_event(headers, title="Public Event")

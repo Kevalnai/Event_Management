@@ -1,7 +1,8 @@
 # auth.py
 
+import os
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
@@ -9,6 +10,7 @@ from jose import jwt, JWTError, ExpiredSignatureError
 from uuid import UUID
 from typing import Dict
 
+from ...core.limiter import limiter
 from . import schema, repository
 from ...core.database import get_db
 from .services import (
@@ -96,7 +98,8 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
 # REGISTER USER
 # -------------------------------------------------------------------
 @router.post("/register", response_model=schema.UserResponse)
-def register_user(user: schema.UserRegister, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def register_user(request: Request, user: schema.UserRegister, db: Session = Depends(get_db)):
     """
     Creates a new user.
     Ensures email and username are not duplicates.
@@ -116,7 +119,8 @@ def register_user(user: schema.UserRegister, db: Session = Depends(get_db)):
 # LOGIN USER → RETURNS ACCESS + REFRESH TOKEN
 # -------------------------------------------------------------------
 @router.post("/login", response_model=schema.Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """
     Login using username or email.
     Returns:
@@ -147,7 +151,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 # REFRESH TOKEN → NEW ACCESS TOKEN
 # -------------------------------------------------------------------
 @router.post("/refresh", response_model=Dict[str, str])
-def refresh(payload: RefreshTokenRequest, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def refresh(request: Request, payload: RefreshTokenRequest, db: Session = Depends(get_db)):
     """
     Accepts a refresh token → returns new access token.
     """
@@ -267,32 +272,43 @@ def admin_only(current_user: User = Depends(require_admin)):
 # PASSWORD RESET (REQUEST)
 # -------------------------------------------------------------------
 @router.post("/password-reset/request")
-def password_reset_request(payload: Dict[str, str], db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def password_reset_request(request: Request, payload: Dict[str, str], db: Session = Depends(get_db)):
     """
-    Generates a password reset token.
-    In production, email this to the user.
+    Generates a password reset token and (in a real deployment) emails it
+    to the user.
+
+    Always returns the same generic response whether or not the email is
+    registered - returning a 404 only for unknown emails would let an
+    attacker enumerate which addresses have accounts. There's no email
+    sending set up yet, so the token is only included in the response
+    when EXPOSE_PASSWORD_RESET_TOKEN=true (local/dev use only - never set
+    this in production).
     """
     email = payload.get("email")
     if not email:
         raise HTTPException(400, "email required")
 
     user = repo.get_user_by_email(db, email)
-    if not user:
-        raise HTTPException(404, "User not found")
 
-    reset_token = secrets.token_urlsafe(48)
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    reset_token = None
+    if user:
+        reset_token = secrets.token_urlsafe(48)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        repo.create_password_reset_token(db, user.user_id, reset_token, expires_at)
 
-    repo.create_password_reset_token(db, user.user_id, reset_token, expires_at)
-
-    return {"reset_token": reset_token, "expires_at": expires_at.isoformat()}
+    response = {"detail": "If an account exists for that email, a reset link has been sent."}
+    if reset_token and os.getenv("EXPOSE_PASSWORD_RESET_TOKEN", "false").lower() == "true":
+        response["reset_token"] = reset_token
+    return response
 
 
 # -------------------------------------------------------------------
 # PASSWORD RESET (CONFIRM)
 # -------------------------------------------------------------------
 @router.post("/password-reset/confirm")
-def password_reset_confirm(payload: Dict[str, str], db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def password_reset_confirm(request: Request, payload: Dict[str, str], db: Session = Depends(get_db)):
     """
     Uses the reset token to change user's password.
     """

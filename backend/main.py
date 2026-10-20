@@ -1,8 +1,18 @@
 # main.py
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
+from app.core.limiter import limiter
 from app.core.database import Base ,engine
 import app.core.model_registry 
 from app.modules.users.models import Base
@@ -23,12 +33,37 @@ def create_app():
     )
 
     # -------------------------------
+    # Error monitoring (optional - only active if SENTRY_DSN is set)
+    # -------------------------------
+    sentry_dsn = os.getenv("SENTRY_DSN")
+    if sentry_dsn:
+        import sentry_sdk
+        sentry_sdk.init(dsn=sentry_dsn, traces_sample_rate=0.2, send_default_pii=False)
+
+    # -------------------------------
+    # Rate limiting (per client IP, applied per-route - see auth.py / payments/routes.py)
+    # -------------------------------
+    app.state.limiter = limiter
+
+    @app.exception_handler(RateLimitExceeded)
+    def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+        # Match the {"detail": ...} shape every other error on this API uses.
+        return JSONResponse(status_code=429, content={"detail": f"Too many requests: {exc.detail}"})
+
+    app.add_middleware(SlowAPIMiddleware)
+
+    # -------------------------------
     # CORS configuration
     # -------------------------------
+    allowed_origins = [
+        origin.strip()
+        for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Change to specific origins in production
-        allow_credentials=True,
+        allow_origins=allowed_origins,
+        allow_credentials=False,  # Bearer-token auth, not cookies - credentials aren't needed
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -36,7 +71,10 @@ def create_app():
     # -------------------------------
     # Database Table Creation
     # -------------------------------
-    
+    # Safe no-op for an already-up-to-date database: this only *creates*
+    # tables that don't exist yet, it never alters existing ones. Schema
+    # changes to an existing database go through Alembic (see backend/alembic/)
+    # - run `alembic upgrade head` after pulling migrations.
     Base.metadata.create_all(bind=engine)
 
     # -------------------------------

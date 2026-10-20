@@ -5,8 +5,8 @@
 
  Test Files  9 passed (9)
       Tests  42 passed (42)
-   Start at  21:57:23
-   Duration  1.17s (environment 58%, tests 17%, import 11%, setup 8%, worker 4%, transform 2%)
+   Start at  00:49:48
+   Duration  1.32s (environment 61%, tests 14%, import 10%, setup 10%, worker 4%, transform 2%)
 
 [34m % [39m[2mCoverage report from [22m[33mv8[39m
 -------------------|---------|----------|---------|---------|-------------------

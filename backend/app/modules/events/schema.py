@@ -1,10 +1,23 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 from uuid import UUID, uuid4
 from datetime import datetime
 from typing import Optional
 from enum import Enum
 
 from ..tickets.schema import TicketRead
+
+
+def _validate_banner_url(value: str | None) -> str | None:
+    """Only accept real http(s) URLs - mirrors the frontend's isImageUrl
+    check, as defense in depth for any API client that bypasses it."""
+    if value is None:
+        return value
+    from urllib.parse import urlparse
+
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("banner_url must be a valid http:// or https:// URL")
+    return value
 
 
  
@@ -157,6 +170,15 @@ class EventBase(BaseSchema):
     price: float = 0
     currency: str = "USD"
 
+    _validate_banner_url = field_validator("banner_url")(_validate_banner_url)
+
+    @field_validator("price")
+    @classmethod
+    def price_cannot_be_negative(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("price cannot be negative")
+        return value
+
 
 class EventCreate(EventBase):
     pass
@@ -173,6 +195,15 @@ class EventUpdate(BaseSchema):
     banner_url: str | None = None
     price: float | None = None
     currency: str | None = None
+
+    _validate_banner_url = field_validator("banner_url")(_validate_banner_url)
+
+    @field_validator("price")
+    @classmethod
+    def price_cannot_be_negative(cls, value: float | None) -> float | None:
+        if value is not None and value < 0:
+            raise ValueError("price cannot be negative")
+        return value
 
 
 class EventRead(EventBase):

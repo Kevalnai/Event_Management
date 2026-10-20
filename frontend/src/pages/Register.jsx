@@ -63,7 +63,7 @@ export default function Register() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </Field>
-          <Field label="Password" hint="At least 8 characters">
+          <Field label="Password" hint="At least 8 characters, with a mix of letters and numbers">
             <input
               required
               minLength={8}

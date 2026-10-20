@@ -17,6 +17,12 @@ os.environ.setdefault("DB_PORT", "5432")
 os.environ["STRIPE_SECRET_KEY"] = "sk_test_dummy_not_real"
 os.environ["STRIPE_WEBHOOK_SECRET"] = "whsec_test_dummy_not_real"
 os.environ.setdefault("SECRET_KEY", "test-suite-secret-key-not-for-production")
+os.environ.setdefault("ALLOWED_ORIGINS", "http://localhost:5173")
+os.environ["EXPOSE_PASSWORD_RESET_TOKEN"] = "true"
+# Starlette's TestClient sends every request from the same "IP", so all
+# tests would otherwise share one rate-limit bucket. Rate limiting itself
+# is covered separately in test_rate_limiting.py with its own client.
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 import pytest
 from starlette.testclient import TestClient

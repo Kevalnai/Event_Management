@@ -130,8 +130,8 @@ class EventService:
         return event
 
     @staticmethod
-    def list_events(db: Session) -> list[Event]:
-        return EventRepository.get_all(db)
+    def list_events(db: Session, limit: int = 50, offset: int = 0) -> list[Event]:
+        return EventRepository.get_all(db, limit=limit, offset=offset)
 
     @staticmethod
     def get_event(db: Session, event_id: UUID) -> Event:
@@ -248,7 +248,9 @@ class EventService:
     def list_registrations(
         db: Session,
         event_id: UUID,
-        user_id: UUID
+        user_id: UUID,
+        limit: int = 50,
+        offset: int = 0
     ) -> list[EventRegistration]:
         """
         List all registrations for an event.
@@ -267,13 +269,17 @@ class EventService:
 
         return EventRegistrationRepository.get_by_event(
             db=db,
-            event_id=event_id
+            event_id=event_id,
+            limit=limit,
+            offset=offset
         )
 
     @staticmethod
-    def list_my_registrations(db: Session, user_id: UUID) -> list[EventRegistration]:
+    def list_my_registrations(
+        db: Session, user_id: UUID, limit: int = 50, offset: int = 0
+    ) -> list[EventRegistration]:
         """All of the current user's own registrations, across every event."""
-        return EventRegistrationRepository.get_by_user(db, user_id)
+        return EventRegistrationRepository.get_by_user(db, user_id, limit=limit, offset=offset)
 
 
 # -------------------- SESSION SERVICE --------------------

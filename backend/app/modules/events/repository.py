@@ -43,8 +43,14 @@ class EventCategoryRepository:
 class EventRepository:
 
     @staticmethod
-    def get_all(db: Session):
-        return db.query(Event).all()
+    def get_all(db: Session, limit: int = 50, offset: int = 0):
+        return (
+            db.query(Event)
+            .order_by(Event.start_date.asc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
     
     @staticmethod
     def get_by_id(db: Session, event_id: UUID) -> Event | None:
@@ -135,24 +141,32 @@ class EventRegistrationRepository:
     @staticmethod
     def get_by_user(
         db: Session,
-        user_id: UUID
+        user_id: UUID,
+        limit: int = 50,
+        offset: int = 0
     ) -> list[EventRegistration]:
         return (
             db.query(EventRegistration)
             .filter(EventRegistration.user_id == user_id)
             .order_by(EventRegistration.registered_at.desc())
+            .offset(offset)
+            .limit(limit)
             .all()
         )
 
     @staticmethod
     def get_by_event(
         db: Session,
-        event_id: UUID
+        event_id: UUID,
+        limit: int = 50,
+        offset: int = 0
     ) -> list[EventRegistration]:
         return (
             db.query(EventRegistration)
             .filter(EventRegistration.event_id == event_id)
             .order_by(EventRegistration.registered_at.desc())
+            .offset(offset)
+            .limit(limit)
             .all()
         )
 

@@ -4,7 +4,7 @@
 # Uses FastAPI dependencies
 
 from uuid import UUID
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from ...core.database import get_db
@@ -70,9 +70,11 @@ def list_categories(db: Session = Depends(get_db)):
 )
 def my_registrations(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0)
 ):
-    return EventService.list_my_registrations(db, current_user.user_id)
+    return EventService.list_my_registrations(db, current_user.user_id, limit=limit, offset=offset)
 
 
 # =========================================================
@@ -85,15 +87,17 @@ def my_registrations(
     summary="List all events"
 )
 def list_events(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0)
 ):
     """
-    Get all events.
+    Get all events, soonest first.
 
     - Public endpoint
     - No authentication required
     """
-    return EventService.list_events(db)
+    return EventService.list_events(db, limit=limit, offset=offset)
 
 
 @router.get(
@@ -305,7 +309,9 @@ def check_in_attendee(
 def list_registrations(
     event_id: UUID,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0)
 ):
     """
     Get all registrations for an event.
@@ -318,5 +324,7 @@ def list_registrations(
     return EventService.list_registrations(
         db=db,
         event_id=event_id,
-        user_id=current_user.user_id
+        user_id=current_user.user_id,
+        limit=limit,
+        offset=offset
     )

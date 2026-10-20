@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 
 from ...core.database import get_db
+from ...core.limiter import limiter
 from ..users.auth import get_current_user
 from .schema import PaymentCreate, PaymentInitiateResponse
 from .services import PaymentService
@@ -25,7 +26,9 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
     status_code=status.HTTP_201_CREATED,
     summary="Create a Stripe PaymentIntent for a registration"
 )
+@limiter.limit("10/minute")
 def initiate_payment(
+    request: Request,
     payload: PaymentCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)

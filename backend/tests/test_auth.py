@@ -3,7 +3,10 @@ Auth module: registration, login, session lifecycle, global RBAC,
 and password reset.
 """
 
+import pytest
+
 from app.modules.users.models import User
+from app.modules.users.models import PasswordResetToken
 
 
 def test_register_creates_user(client):
@@ -33,6 +36,15 @@ def test_register_ignores_client_supplied_role(client):
     )
     assert resp.status_code == 200
     assert resp.json()["role"] == "user"
+
+
+@pytest.mark.parametrize("password", ["short1", "allletters", "12345678"])
+def test_register_rejects_weak_passwords(client, password):
+    resp = client.post(
+        "/auth/register",
+        json={"username": "weakpw", "email": "weakpw@example.com", "password": password},
+    )
+    assert resp.status_code == 422
 
 
 def test_register_rejects_duplicate_email(client, make_user):
@@ -142,6 +154,19 @@ def test_non_admin_cannot_promote_users(client, make_user):
     assert resp.status_code == 403
 
 
+def test_promote_rejects_invalid_role_value(client, make_user, db):
+    admin_user, admin_headers = make_user("role-admin")
+    target, _ = make_user("role-target")
+    row = db.query(User).filter(User.user_id == admin_user["user_id"]).first()
+    row.role = "admin"
+    db.commit()
+
+    resp = client.patch(
+        f"/auth/users/{target['user_id']}/role", json={"role": "superadmin"}, headers=admin_headers
+    )
+    assert resp.status_code == 422
+
+
 def test_refresh_token_issues_new_access_token(client, make_user):
     make_user("liam", password="Passw0rd!")
     login = client.post("/auth/login", data={"username": "liam", "password": "Passw0rd!"})
@@ -182,6 +207,21 @@ def test_password_reset_full_flow(client, make_user):
 
     new_login = client.post("/auth/login", data={"username": "nora", "password": "NewPassw0rd!"})
     assert new_login.status_code == 200
+
+
+def test_password_reset_request_does_not_leak_whether_email_exists(client, make_user, db):
+    """Regression test: a 404-vs-200 split here would let an attacker
+    enumerate which emails have accounts."""
+    make_user("oscar", email="oscar@example.com")
+
+    known = client.post("/auth/password-reset/request", json={"email": "oscar@example.com"})
+    unknown = client.post("/auth/password-reset/request", json={"email": "nobody-at-all@example.com"})
+
+    assert known.status_code == unknown.status_code == 200
+    assert known.json()["detail"] == unknown.json()["detail"]
+
+    # A token was only actually created for the real account.
+    assert db.query(PasswordResetToken).count() == 1
 
 
 def test_password_reset_rejects_bad_token(client):

@@ -13,9 +13,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # -------------------------------------------------------------------
-# CONFIGURATION (with safe fallbacks)
+# CONFIGURATION
 # -------------------------------------------------------------------
-SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_THIS_IN_PRODUCTION")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    # Fail loudly at startup rather than silently signing every JWT with a
+    # well-known fallback string if the env var is ever missing.
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. Generate one with: "
+        "python3 -c \"import secrets; print(secrets.token_urlsafe(64))\""
+    )
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 7))

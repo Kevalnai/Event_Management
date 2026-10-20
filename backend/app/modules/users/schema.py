@@ -1,7 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from uuid import UUID, uuid4
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 # --- 1. Base Schema (Shared Fields) ---
 class UserBase(BaseModel):
@@ -23,6 +23,15 @@ class UserRegister(UserBase):
     """
     password: str # Plain text password for hashing
 
+    @field_validator("password")
+    @classmethod
+    def password_must_be_strong_enough(cls, value: str) -> str:
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if value.isdigit() or value.isalpha():
+            raise ValueError("Password must contain a mix of letters and numbers")
+        return value
+
 class UserLogin(BaseModel):
     """
     Schema for user login (Only needs identifying credential and password).
@@ -43,7 +52,7 @@ class UserUpdate(BaseModel):
 
 class RoleUpdate(BaseModel):
     """Admin-only: change another user's role."""
-    role: str
+    role: Literal["user", "admin"]
 
 # --- 3. Output Schema (Data from API to Client) ---
 
