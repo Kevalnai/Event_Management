@@ -72,7 +72,14 @@ class PaymentService:
                 metadata={
                     "registration_id": str(registration_id)
                 },
-                idempotency_key=f"registration-{registration_id}-init"
+                idempotency_key=f"registration-{registration_id}-init",
+                # The frontend confirms with redirect="if_required" and never
+                # supplies a return_url (it's a single-page checkout, nothing
+                # to redirect back to). Without this, Stripe rejects the
+                # confirm call for any account with a redirect-capable method
+                # (e.g. Link) enabled in the Dashboard, which is the default -
+                # every real card payment would fail at the final step.
+                automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
             )
         except stripe.error.StripeError as e:
             raise HTTPException(status_code=502, detail=f"Stripe error: {str(e)}")

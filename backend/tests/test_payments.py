@@ -43,6 +43,13 @@ def test_initiate_payment_creates_intent_with_server_side_amount(mock_create, cl
     assert kwargs["amount"] == 4250
     assert kwargs["currency"] == "usd"
 
+    # Regression test: without allow_redirects="never", Stripe rejects the
+    # frontend's confirmPayment() call (redirect="if_required", no return_url)
+    # for any account with a redirect-capable method (e.g. Link) enabled -
+    # i.e. every real card payment would fail at the final step. Verified
+    # against the real Stripe test API, not just this mock.
+    assert kwargs["automatic_payment_methods"] == {"enabled": True, "allow_redirects": "never"}
+
 
 @patch("app.modules.payments.services.stripe.PaymentIntent.create")
 def test_initiate_payment_rejects_non_owner(mock_create, client, make_user, make_event):
