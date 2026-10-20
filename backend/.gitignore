@@ -26,3 +26,8 @@ Thumbs.db
 
 # SQLite
 *.sqlite3
+
+# Test coverage cache (regenerate with: pytest --cov=app)
+.coverage
+.pytest_cache/
+htmlcov/

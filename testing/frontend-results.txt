@@ -1,0 +1,50 @@
+
+ RUN  v5.0.5 /Users/keval/Projects/Event_Management/Event_Management/frontend
+      Coverage enabled with v8
+
+
+ Test Files  9 passed (9)
+      Tests  42 passed (42)
+   Start at  21:57:23
+   Duration  1.17s (environment 58%, tests 17%, import 11%, setup 8%, worker 4%, transform 2%)
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   26.76 |    22.98 |      20 |   26.91 |                   
+ src               |       0 |      100 |       0 |       0 |                   
+  App.jsx          |       0 |      100 |       0 |       0 | 16                
+ ...ponents/layout |       0 |        0 |       0 |       0 |                   
+  Footer.jsx       |       0 |      100 |       0 |       0 | 5                 
+  Layout.jsx       |       0 |        0 |       0 |       0 | 7-15              
+  Navbar.jsx       |       0 |        0 |       0 |       0 | 10-181            
+  ...ctedRoute.jsx |       0 |        0 |       0 |       0 | 6-11              
+ src/components/ui |   80.64 |    73.68 |   63.63 |      80 |                   
+  Alert.jsx        |     100 |    71.42 |     100 |     100 | 9-12              
+  Badge.jsx        |       0 |        0 |       0 |       0 | 1-10              
+  EventCard.jsx    |     100 |    85.71 |     100 |     100 | 10                
+  Field.jsx        |     100 |    85.71 |     100 |     100 | 7                 
+  Loader.jsx       |       0 |        0 |       0 |       0 | 2-6               
+  Section.jsx      |   33.33 |       50 |      50 |   33.33 | 10-14             
+ src/context       |   80.55 |       75 |   85.71 |   82.85 |                   
+  AuthContext.jsx  |   80.55 |       75 |   85.71 |   82.85 | 20-21,48-52       
+ src/lib           |    43.2 |    40.42 |   47.36 |   41.42 |                   
+  api.js           |       0 |        0 |       0 |       0 | 3-72              
+  stripe.js        |       0 |        0 |       0 |       0 | 6-10              
+ src/pages         |   13.28 |     6.84 |   10.41 |   13.33 |                   
+  Checkout.jsx     |       0 |        0 |       0 |       0 | 19-132            
+  ...utSuccess.jsx |       0 |      100 |       0 |       0 | 7                 
+  CreateEvent.jsx  |       0 |        0 |       0 |       0 | 11-216            
+  Dashboard.jsx    |       0 |        0 |       0 |       0 | 16-169            
+  EventDetail.jsx  |       0 |        0 |       0 |       0 | 18-248            
+  Events.jsx       |       0 |        0 |       0 |       0 | 9-99              
+  Home.jsx         |       0 |        0 |       0 |       0 | 21-314            
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+Statements   : 26.76% ( 125/467 )
+Branches     : 22.98% ( 60/261 )
+Functions    : 20% ( 32/160 )
+Lines        : 26.91% ( 116/431 )
+================================================================================

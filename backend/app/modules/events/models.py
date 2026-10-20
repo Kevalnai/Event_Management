@@ -100,9 +100,11 @@ class Event(Base):
     )
 
     category = relationship("EventCategory", back_populates="events")
-    sessions = relationship("EventSession", back_populates="event")
-    registrations = relationship("EventRegistration", back_populates="event")
-    organisers = relationship("EventOrganiser", back_populates="event")
+    # passive_deletes=True defers to the FKs' own ON DELETE CASCADE instead of
+    # the ORM trying to null out each child's (NOT NULL) event_id first.
+    sessions = relationship("EventSession", back_populates="event", passive_deletes=True)
+    registrations = relationship("EventRegistration", back_populates="event", passive_deletes=True)
+    organisers = relationship("EventOrganiser", back_populates="event", passive_deletes=True)
 
 
 
