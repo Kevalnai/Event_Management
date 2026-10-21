@@ -9,9 +9,9 @@
 
 | Suite | Framework | Tests | Passed | Failed | Statement coverage |
 |---|---|---|---|---|---|
-| Backend (`backend/tests/`) | pytest + Starlette `TestClient` | 62 | 62 | 0 | 94% |
+| Backend (`backend/tests/`) | pytest + Starlette `TestClient` | 65 | 65 | 0 | 94% |
 | Frontend (`frontend/src/**/*.test.jsx`) | Vitest + React Testing Library | 42 | 42 | 0 | 27% (see note below) |
-| **Total** | | **104** | **104** | **0** | |
+| **Total** | | **107** | **107** | **0** | |
 
 Full raw output: [`backend-results.txt`](./backend-results.txt), [`frontend-results.txt`](./frontend-results.txt), and a browsable HTML report at [`backend-report.html`](./backend-report.html). Both suites now also run automatically on every push/PR via [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
@@ -38,6 +38,16 @@ A full security/production-readiness audit was run against the live code (not me
 | No CI | Added `.github/workflows/ci.yml` — runs both test suites (with a real Postgres service container for the backend) on every push/PR |
 
 **A bug found while writing this pass's migration**: Alembic's autogenerate produced an `upgrade()` that created three Postgres native enum types but a `downgrade()` that only dropped the tables, not the enum types themselves. Verified via a full upgrade → downgrade → upgrade round-trip against a scratch database, which failed the second upgrade with `type "organiser_role_enum" already exists`. Fixed by adding explicit `sa.Enum(...).drop(op.get_bind(), checkfirst=True)` calls to the downgrade — a known Alembic/Postgres-enum gap, not something autogenerate catches on its own.
+
+## Live end-to-end verification (2026-10-21)
+
+Before calling the payment/ticketing flow production-ready, it was driven through a real browser against the real Stripe test API — not mocks, not curl. Register → browse → RSVP → real Stripe Elements checkout → real test card → webhook → dashboard → ticket QR → scan → check-in, end to end, twice (once free, once paid). This surfaced three real bugs that no amount of mocked unit testing would have caught:
+
+1. **Every real card payment would have failed at the final step.** `stripe.PaymentIntent.create()` didn't set `automatic_payment_methods`, so it defaulted to whatever's enabled in the Stripe Dashboard (which includes "Link," a redirect-capable method). Confirming that PaymentIntent the way the frontend actually does (`redirect: "if_required"`, no `return_url` - it's a single-page app with nowhere to redirect back to) was rejected by Stripe outright. Fixed with `automatic_payment_methods={"enabled": True, "allow_redirects": "never"}`, verified against the real Stripe API.
+2. **An unhandled exception anywhere in the app produced a response with no CORS headers**, which a browser reports as a confusing "blocked by CORS policy" error instead of the real error - hiding the actual problem and risking a leaked stack trace. Root cause: Starlette's `ServerErrorMiddleware` (which catches anything that slips past application-level handlers) sits *outside* `CORSMiddleware`, so its responses never get CORS headers added. Fixed with a global `@app.exception_handler(Exception)` in `main.py` that logs the real error server-side and always returns a safe `{"detail": "Internal server error"}` - this handler runs *inside* `CORSMiddleware`'s layer, so headers are always correct. (A duplicate event title was the first concrete trigger of this - see below - but the fix covers any future unhandled exception, not just that one case.)
+3. **A real race condition in payment creation**, exposed by React StrictMode double-firing the checkout effect in dev (harmless on its own - the backend already dedupes to the same PaymentIntent) but just as reachable in production by a double-click or a retried request: two near-simultaneous calls for the same registration can both pass the "no existing pending payment" check before either commits, then both get the *same* PaymentIntent back from Stripe via the idempotency key - and the second database insert crashed on the `stripe_payment_intent_id` unique constraint. Compounded by a known concurrency quirk in Starlette's `BaseHTTPMiddleware` (which `slowapi`'s rate-limit middleware is built on), this corrupted the *sibling* request's response enough that the browser reported it as a CORS failure rather than any real error - the same symptom as #2, different root cause. Fixed by catching the `IntegrityError` and falling back to the row the other request already created, in `payments/services.py`.
+
+Also fixed in this pass, found via the same live testing: creating an event with a title that already exists (the `events.title` unique constraint) was an unhandled 500 instead of a clean `400 An event with this title already exists`.
 
 ## A bug this test suite found
 
@@ -90,7 +100,7 @@ The backend suite creates its own tables in `event_management_test` on first run
 | `test_register_rejects_weak_passwords` *(×3)* | 422 for too-short, all-letters, and all-digits passwords |
 | `test_promote_rejects_invalid_role_value` | 422 if a role other than `"user"`/`"admin"` is sent |
 
-### `tests/test_events.py` — categories, event CRUD, per-event RBAC, sessions, registrations, check-ins (26)
+### `tests/test_events.py` — categories, event CRUD, per-event RBAC, sessions, registrations, check-ins (28)
 
 | Test | Verifies |
 |---|---|
@@ -116,6 +126,8 @@ The backend suite creates its own tables in `event_management_test` on first run
 | `test_create_event_rejects_negative_price` | 422 for a negative price |
 | `test_list_events_respects_limit_and_offset` | Pagination actually slices the result set |
 | `test_list_events_rejects_oversized_limit` | 422 for `limit=1000` (max is 100) |
+| `test_duplicate_event_title_is_a_clean_400` | A duplicate title is a clean 400, not a raw 500 (found live - see "Live end-to-end verification" above) |
+| `test_unexpected_server_error_returns_safe_json_not_a_raw_crash` | A genuinely unexpected exception still returns a safe, CORS-correct JSON response, never a raw crash |
 
 ### `tests/test_rate_limiting.py` — rate limiting (2)
 
@@ -126,14 +138,15 @@ Disabled globally for the rest of the suite (every request from `TestClient` sha
 | `test_register_is_rate_limited` | 6th registration attempt in a burst gets 429 (limit is 5/min) |
 | `test_password_reset_request_is_rate_limited` | 4th reset request in a burst gets 429 (limit is 3/min) |
 
-### `tests/test_payments.py` — Stripe PaymentIntents and webhook (7)
+### `tests/test_payments.py` — Stripe PaymentIntents and webhook (8)
 
 | Test | Verifies |
 |---|---|
-| `test_initiate_payment_creates_intent_with_server_side_amount` | The amount Stripe is told about comes from `event.price`, in cents — never the client |
+| `test_initiate_payment_creates_intent_with_server_side_amount` | The amount Stripe is told about comes from `event.price`, in cents — never the client. Also asserts `automatic_payment_methods={"enabled": True, "allow_redirects": "never"}` is set (regression test for the real "every card payment fails" bug found live) |
 | `test_initiate_payment_rejects_non_owner` | 403 if you try to pay for someone else's registration; Stripe is never called |
 | `test_initiate_payment_rejects_free_event` | 400 — nothing to pay for a free event |
 | `test_initiate_payment_reuses_pending_intent` | A second call reuses the existing PaymentIntent (`retrieve`) instead of creating a duplicate |
+| `test_initiate_payment_survives_concurrent_duplicate_inserts` | Two near-simultaneous calls for the same registration don't crash (regression test for the real race condition found live - see "Live end-to-end verification" above) |
 | `test_webhook_marks_payment_and_registration_confirmed` | `payment_intent.succeeded` flips both the payment and the registration to confirmed |
 | `test_webhook_marks_payment_failed` | `payment_intent.payment_failed` marks the payment failed |
 | `test_webhook_rejects_bad_signature` | An invalid Stripe signature is rejected with 400 |
@@ -183,7 +196,7 @@ Disabled globally for the rest of the suite (every request from `TestClient` sha
 ## Follow-ups (not in this pass)
 
 - **Frontend page coverage**: `Home`, `Events`, `EventDetail`, `Dashboard`, `CreateEvent`, `Checkout`, `Navbar` are untested. These need heavier setup (mocked Axios responses for multiple endpoints, a mocked Stripe Elements provider, mocked `react-qr-code`) — worth a dedicated follow-up pass rather than rushing it here.
-- **Backend**: no load/concurrency tests (e.g. two simultaneous `POST /payments/` for the same registration), and no test exercises `stripe.error.StripeError` being raised mid-call (the 502 paths in `payments/services.py`).
+- **Backend**: no test exercises `stripe.error.StripeError` being raised mid-call (the 502 paths in `payments/services.py`). The specific concurrent-duplicate-insert race *is* now covered (`test_initiate_payment_survives_concurrent_duplicate_inserts`), found via live browser testing rather than a deliberate load test - broader concurrency/load testing is still a gap.
 - **Rate limit storage is in-memory**: correct for a single process, but if this is ever deployed as multiple worker processes/instances behind a load balancer, each would count its own limits separately. Point `app/core/limiter.py` at Redis (`storage_uri="redis://..."`) before scaling out horizontally.
 - **No real email sending**: password reset tokens have nowhere to go except the API response (gated behind `EXPOSE_PASSWORD_RESET_TOKEN`, dev-only). Wiring up an actual email provider is required before this flow is usable by real users.
 - **First platform admin still requires direct DB access** — `UPDATE users SET role='admin' WHERE email=...` — by design, since there's deliberately no self-service or bootstrap-via-API path. Document this in whatever deploy runbook exists so a fresh production database doesn't get stuck with no admin.

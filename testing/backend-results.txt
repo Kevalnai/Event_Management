@@ -1,76 +1,4 @@
-============================= test session starts ==============================
-platform darwin -- Python 3.14.6, pytest-9.1.1, pluggy-1.7.0 -- /Users/keval/Projects/Event_Management/Event_Management/backend/.venv/bin/python3
-cachedir: .pytest_cache
-metadata: {'Python': '3.14.6', 'Platform': 'macOS-26.5.2-arm64-arm-64bit-Mach-O', 'Packages': {'pytest': '9.1.1', 'pluggy': '1.7.0'}, 'Plugins': {'anyio': '4.11.0', 'cov': '7.1.0', 'metadata': '3.1.1', 'html': '4.2.0'}}
-rootdir: /Users/keval/Projects/Event_Management/Event_Management/backend
-configfile: pytest.ini
-testpaths: tests
-plugins: anyio-4.11.0, cov-7.1.0, metadata-3.1.1, html-4.2.0
-collecting ... collected 62 items
-
-tests/test_auth.py::test_register_creates_user PASSED                    [  1%]
-tests/test_auth.py::test_register_ignores_client_supplied_role PASSED    [  3%]
-tests/test_auth.py::test_register_rejects_weak_passwords[short1] PASSED  [  4%]
-tests/test_auth.py::test_register_rejects_weak_passwords[allletters] PASSED [  6%]
-tests/test_auth.py::test_register_rejects_weak_passwords[12345678] PASSED [  8%]
-tests/test_auth.py::test_register_rejects_duplicate_email PASSED         [  9%]
-tests/test_auth.py::test_register_rejects_duplicate_username PASSED      [ 11%]
-tests/test_auth.py::test_login_with_email_or_username PASSED             [ 12%]
-tests/test_auth.py::test_login_rejects_wrong_password PASSED             [ 14%]
-tests/test_auth.py::test_login_rejects_unknown_user PASSED               [ 16%]
-tests/test_auth.py::test_me_requires_auth PASSED                         [ 17%]
-tests/test_auth.py::test_me_returns_current_user PASSED                  [ 19%]
-tests/test_auth.py::test_update_profile_changes_username_and_email PASSED [ 20%]
-tests/test_auth.py::test_update_profile_cannot_self_promote_role PASSED  [ 22%]
-tests/test_auth.py::test_admin_only_route_blocks_regular_user PASSED     [ 24%]
-tests/test_auth.py::test_admin_can_promote_another_user PASSED           [ 25%]
-tests/test_auth.py::test_non_admin_cannot_promote_users PASSED           [ 27%]
-tests/test_auth.py::test_promote_rejects_invalid_role_value PASSED       [ 29%]
-tests/test_auth.py::test_refresh_token_issues_new_access_token PASSED    [ 30%]
-tests/test_auth.py::test_logout_revokes_refresh_token PASSED             [ 32%]
-tests/test_auth.py::test_password_reset_full_flow PASSED                 [ 33%]
-tests/test_auth.py::test_password_reset_request_does_not_leak_whether_email_exists PASSED [ 35%]
-tests/test_auth.py::test_password_reset_rejects_bad_token PASSED         [ 37%]
-tests/test_events.py::test_create_and_list_categories PASSED             [ 38%]
-tests/test_events.py::test_create_category_is_idempotent_by_name PASSED  [ 40%]
-tests/test_events.py::test_create_event_requires_auth PASSED             [ 41%]
-tests/test_events.py::test_get_nonexistent_event_returns_404 PASSED      [ 43%]
-tests/test_events.py::test_register_for_nonexistent_event_returns_404 PASSED [ 45%]
-tests/test_events.py::test_create_event_rejects_non_url_banner PASSED    [ 46%]
-tests/test_events.py::test_create_event_rejects_negative_price PASSED    [ 48%]
-tests/test_events.py::test_list_events_respects_limit_and_offset PASSED  [ 50%]
-tests/test_events.py::test_list_events_rejects_oversized_limit PASSED    [ 51%]
-tests/test_events.py::test_list_and_get_event_are_public PASSED          [ 53%]
-tests/test_events.py::test_event_detail_never_leaks_registrations_or_organisers PASSED [ 54%]
-tests/test_events.py::test_creator_is_auto_assigned_as_admin_organiser PASSED [ 56%]
-tests/test_events.py::test_delete_event_requires_admin_organiser PASSED  [ 58%]
-tests/test_events.py::test_add_organiser_requires_existing_admin PASSED  [ 59%]
-tests/test_events.py::test_granting_organiser_role_twice_upserts_not_duplicates PASSED [ 61%]
-tests/test_events.py::test_create_session_allowed_for_staff_not_volunteer PASSED [ 62%]
-tests/test_events.py::test_register_for_free_event_confirms_instantly PASSED [ 64%]
-tests/test_events.py::test_register_for_paid_event_stays_pending PASSED  [ 66%]
-tests/test_events.py::test_register_uses_jwt_identity_not_request_body PASSED [ 67%]
-tests/test_events.py::test_my_registrations_lists_own_bookings_with_event_nested PASSED [ 69%]
-tests/test_events.py::test_list_event_registrations_is_organiser_only PASSED [ 70%]
-tests/test_events.py::test_manual_checkin_allows_volunteer_blocks_outsider PASSED [ 72%]
-tests/test_payments.py::test_initiate_payment_creates_intent_with_server_side_amount PASSED [ 74%]
-tests/test_payments.py::test_initiate_payment_rejects_non_owner PASSED   [ 75%]
-tests/test_payments.py::test_initiate_payment_rejects_free_event PASSED  [ 77%]
-tests/test_payments.py::test_initiate_payment_reuses_pending_intent PASSED [ 79%]
-tests/test_payments.py::test_webhook_marks_payment_and_registration_confirmed PASSED [ 80%]
-tests/test_payments.py::test_webhook_marks_payment_failed PASSED         [ 82%]
-tests/test_payments.py::test_webhook_rejects_bad_signature PASSED        [ 83%]
-tests/test_rate_limiting.py::test_register_is_rate_limited PASSED        [ 85%]
-tests/test_rate_limiting.py::test_password_reset_request_is_rate_limited PASSED [ 87%]
-tests/test_scanner.py::test_scan_unknown_qr_code_returns_404 PASSED      [ 88%]
-tests/test_scanner.py::test_scan_blocks_non_organiser PASSED             [ 90%]
-tests/test_scanner.py::test_scan_allows_volunteer_and_records_checkin PASSED [ 91%]
-tests/test_scanner.py::test_scanning_same_ticket_twice_is_rejected PASSED [ 93%]
-tests/test_tickets.py::test_cannot_issue_ticket_for_pending_registration PASSED [ 95%]
-tests/test_tickets.py::test_issue_ticket_for_confirmed_registration PASSED [ 96%]
-tests/test_tickets.py::test_issuing_ticket_twice_is_idempotent PASSED    [ 98%]
-tests/test_tickets.py::test_cannot_issue_ticket_for_someone_elses_registration PASSED [100%]
-
+.................................................................        [100%]
 =============================== warnings summary ===============================
 app/modules/users/schema.py:59
   /Users/keval/Projects/Event_Management/Event_Management/backend/app/modules/users/schema.py:59: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
@@ -98,8 +26,8 @@ tests/test_auth.py::test_register_creates_user
     _argon2_cffi.__version__, max_version)
 
 tests/test_auth.py: 23 warnings
-tests/test_events.py: 35 warnings
-tests/test_payments.py: 13 warnings
+tests/test_events.py: 37 warnings
+tests/test_payments.py: 15 warnings
 tests/test_scanner.py: 9 warnings
 tests/test_tickets.py: 9 warnings
   /Users/keval/Projects/Event_Management/Event_Management/backend/app/modules/users/services.py:91: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
@@ -118,12 +46,12 @@ app/modules/events/models.py            86      0   100%
 app/modules/events/repository.py        79      1    99%   27
 app/modules/events/routes.py            52      0   100%
 app/modules/events/schema.py            86      4    95%   20, 204-206
-app/modules/events/services.py         105      7    93%   91-97, 161, 213, 342
+app/modules/events/services.py         110      7    94%   92-98, 169, 221, 350
 app/modules/payments/models.py          23      0   100%
 app/modules/payments/repository.py      28      7    75%   38, 79-90
 app/modules/payments/routes.py          33      1    97%   68
 app/modules/payments/schema.py          12      0   100%
-app/modules/payments/services.py        64      9    86%   31, 41, 55-56, 77-78, 108, 112, 147
+app/modules/payments/services.py        71     10    86%   32, 42, 56-57, 85-86, 109, 130, 134, 169
 app/modules/scanners/models.py           5      0   100%
 app/modules/scanners/routes.py          11      0   100%
 app/modules/scanners/schema.py           4      0   100%
@@ -139,6 +67,6 @@ app/modules/users/repository.py         61      6    90%   82-87
 app/modules/users/schema.py             28      0   100%
 app/modules/users/services.py           31      6    81%   22, 64-69, 77
 ------------------------------------------------------------------
-TOTAL                                 1023     64    94%
+TOTAL                                 1035     65    94%
 - Generated html report: file:///Users/keval/Projects/Event_Management/Event_Management/backend/../testing/backend-report.html -
-======================= 62 passed, 99 warnings in 6.71s ========================
+65 passed, 103 warnings in 6.64s

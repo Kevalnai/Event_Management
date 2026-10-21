@@ -2,6 +2,7 @@ import os
 import stripe
 
 from uuid import UUID
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
@@ -84,14 +85,28 @@ class PaymentService:
         except stripe.error.StripeError as e:
             raise HTTPException(status_code=502, detail=f"Stripe error: {str(e)}")
 
-        payment = PaymentRepository.create_payment(
-            db=db,
-            registration_id=registration_id,
-            amount=amount,
-            currency=currency,
-            stripe_payment_intent_id=payment_intent.id,
-            payment_provider="stripe"
-        )
+        try:
+            payment = PaymentRepository.create_payment(
+                db=db,
+                registration_id=registration_id,
+                amount=amount,
+                currency=currency,
+                stripe_payment_intent_id=payment_intent.id,
+                payment_provider="stripe"
+            )
+        except IntegrityError:
+            # Two concurrent calls for the same registration (a double
+            # click, a retried request, React StrictMode's double effect in
+            # dev) can both pass the "no existing pending payment" check
+            # above before either commits, then both get the same Stripe
+            # PaymentIntent back via the idempotency key - the second
+            # insert here hits the unique constraint on
+            # stripe_payment_intent_id. Rather than crash, fall back to the
+            # row the other request just created; it's the same PaymentIntent.
+            db.rollback()
+            payment = PaymentRepository.get_by_stripe_payment_intent(db, payment_intent.id)
+            if not payment:
+                raise
 
         return {
             "payment": payment,

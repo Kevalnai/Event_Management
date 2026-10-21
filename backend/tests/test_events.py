@@ -3,6 +3,73 @@ Events module: categories, event CRUD, per-event RBAC (organisers),
 sessions, registrations, and manual check-ins.
 """
 
+from unittest.mock import patch
+
+from starlette.testclient import TestClient
+
+from main import app
+
+
+def test_duplicate_event_title_is_a_clean_400(client, make_user):
+    _, headers = make_user("duphost1")
+    cat = client.post("/events/categories", json={"name": "DupCat"}, headers=headers).json()
+    body = {
+        "title": "Only One Of Me",
+        "category_id": cat["category_id"],
+        "start_date": "2027-01-01T18:00:00Z",
+        "end_date": "2027-01-01T22:00:00Z",
+        "venue": "V",
+        "address": "A",
+        "price": 0,
+        "currency": "USD",
+    }
+    first = client.post("/events/events", json=body, headers=headers)
+    assert first.status_code == 201
+
+    second = client.post("/events/events", json=body, headers=headers)
+    assert second.status_code == 400
+    assert "already exists" in second.json()["detail"]
+
+
+def test_unexpected_server_error_returns_safe_json_not_a_raw_crash(client, make_user):
+    """
+    Regression test for a real bug found while testing live: an unhandled
+    exception bypassed CORSMiddleware entirely (Starlette's ServerError-
+    Middleware sits outside it), so the browser saw a bare network/CORS
+    failure instead of a real error, and a raw traceback could leak to the
+    client. The global exception handler in main.py fixes this - verify it
+    actually catches something unexpected and returns a safe response.
+    """
+    _, headers = make_user("crashhost1")
+    cat = client.post("/events/categories", json={"name": "CrashCat"}, headers=headers).json()
+
+    # TestClient re-raises unhandled exceptions into the test by default
+    # (for debugging convenience) - raise_server_exceptions=False is the
+    # documented way to instead observe the actual HTTP response, which is
+    # what a real deployed server's caller always sees either way.
+    with patch(
+        "app.modules.events.services.EventRepository.create",
+        side_effect=RuntimeError("something nobody anticipated"),
+    ), TestClient(app, raise_server_exceptions=False) as crash_client:
+        resp = crash_client.post(
+            "/events/events",
+            json={
+                "title": "Crash Test Event",
+                "category_id": cat["category_id"],
+                "start_date": "2027-01-01T18:00:00Z",
+                "end_date": "2027-01-01T22:00:00Z",
+                "venue": "V",
+                "address": "A",
+                "price": 0,
+                "currency": "USD",
+            },
+            headers=headers,
+        )
+
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": "Internal server error"}
+    assert "something nobody anticipated" not in resp.text
+
 
 def test_create_and_list_categories(client, make_user):
     _, headers = make_user("host1")

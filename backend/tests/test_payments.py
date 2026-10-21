@@ -104,6 +104,48 @@ def test_initiate_payment_reuses_pending_intent(mock_create, mock_retrieve, clie
     assert mock_retrieve.call_count == 1
 
 
+@patch("app.modules.payments.services.PaymentRepository.get_pending_by_registration")
+@patch("app.modules.payments.services.stripe.PaymentIntent.create")
+def test_initiate_payment_survives_concurrent_duplicate_inserts(
+    mock_create, mock_get_pending, client, make_user, make_event
+):
+    """
+    Regression test for a real bug found via a live browser test: two
+    near-simultaneous requests for the same registration (React
+    StrictMode's double effect in dev, but just as easily a double-click
+    or a retried request in production) can both pass the "no existing
+    pending payment" check before either commits, then both get the same
+    PaymentIntent back from Stripe via the idempotency key. The second
+    INSERT used to crash with an uncaught IntegrityError on the
+    stripe_payment_intent_id unique constraint - which, compounded by a
+    known Starlette BaseHTTPMiddleware quirk under concurrent requests,
+    corrupted the *sibling* request's response enough that the browser
+    reported it as a CORS failure instead of any real error.
+
+    Simulated here by forcing "no pending payment found" on both calls
+    (mocked) while Stripe (also mocked) returns the same PaymentIntent id
+    for both - exactly what the race produces.
+    """
+    mock_get_pending.return_value = None
+    mock_create.return_value = Mock(id="pi_race_1", client_secret="secret_race")
+
+    _, owner_headers = make_user("payhost5race")
+    _, attendee_headers = make_user("payer5race")
+    event = make_event(owner_headers, price=15)
+    registration = _register(client, event, attendee_headers)
+
+    first = client.post(
+        "/payments/", json={"registration_id": registration["registration_id"]}, headers=attendee_headers
+    )
+    second = client.post(
+        "/payments/", json={"registration_id": registration["registration_id"]}, headers=attendee_headers
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["payment"]["payment_id"] == second.json()["payment"]["payment_id"]
+
+
 @patch("app.modules.payments.routes.stripe.Webhook.construct_event")
 @patch("app.modules.payments.services.stripe.PaymentIntent.create")
 def test_webhook_marks_payment_and_registration_confirmed(mock_create, mock_construct, client, make_user, make_event, db):

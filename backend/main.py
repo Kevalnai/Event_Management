@@ -1,5 +1,6 @@
 # main.py
 
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -11,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+logger = logging.getLogger("app")
 
 from app.core.limiter import limiter
 from app.core.database import Base ,engine
@@ -49,6 +52,24 @@ def create_app():
     def rate_limit_handler(request: Request, exc: RateLimitExceeded):
         # Match the {"detail": ...} shape every other error on this API uses.
         return JSONResponse(status_code=429, content={"detail": f"Too many requests: {exc.detail}"})
+
+    # -------------------------------
+    # Catch-all for genuinely unexpected errors (bugs, not HTTPExceptions -
+    # those already have their own, more specific handler from FastAPI, so
+    # this never changes their behavior).
+    #
+    # Without this, an unhandled exception propagates past CORSMiddleware
+    # to Starlette's own ServerErrorMiddleware, which returns a response
+    # with NO CORS headers at all - the browser reports that as a generic
+    # "blocked by CORS policy" / network failure, hiding the real 500 and
+    # making it much harder to debug. It also means a raw stack trace could
+    # leak to the client. This handler runs inside CORSMiddleware's layer
+    # (so headers are added correctly) and always returns a safe message.
+    # -------------------------------
+    @app.exception_handler(Exception)
+    def unhandled_exception_handler(request: Request, exc: Exception):
+        logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     app.add_middleware(SlowAPIMiddleware)
 

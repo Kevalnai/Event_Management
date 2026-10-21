@@ -5,6 +5,7 @@
 
 from uuid import UUID, uuid4
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import (
@@ -114,7 +115,14 @@ class EventService:
             **payload.model_dump(),
             created_by=user_id
         )
-        event = EventRepository.create(db, event)
+        try:
+            event = EventRepository.create(db, event)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="An event with this title already exists"
+            )
 
         # The creator is automatically the event's admin organiser,
         # otherwise no one could ever pass the RBAC checks below.
