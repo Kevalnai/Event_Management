@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Calendar, Clock, MapPin, Share2, Ticket, Users } from "lucide-react";
+import { Calendar, Clock, MapPin, Settings, Share2, Ticket, Users } from "lucide-react";
 import { api, apiErrorMessage } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { formatDate, formatPrice, formatTime } from "../lib/format";
@@ -22,6 +22,7 @@ export default function EventDetail() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [myRole, setMyRole] = useState(null);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
@@ -43,6 +44,19 @@ export default function EventDetail() {
       setForm({ name: user.username, email: user.email, phone: "" });
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setMyRole(null);
+      return;
+    }
+    // Drives whether the "Manage event" link shows - the backend re-checks
+    // RBAC on every actual management endpoint regardless of this value.
+    api
+      .get(`/events/${id}/my-role`)
+      .then(({ data }) => setMyRole(data.role))
+      .catch(() => setMyRole(null));
+  }, [id, user]);
 
   function openForm() {
     if (!user) {
@@ -114,9 +128,16 @@ export default function EventDetail() {
             className="lg:col-span-2"
           >
             <div className="rounded-3xl bg-white p-6 shadow-lift sm:p-9">
-              <div className="flex flex-wrap items-center gap-2">
-                {event.category?.name && <Badge tone="violet">{event.category.name}</Badge>}
-                <Badge tone={isFree ? "lime" : "coral"}>{price}</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {event.category?.name && <Badge tone="violet">{event.category.name}</Badge>}
+                  <Badge tone={isFree ? "lime" : "coral"}>{price}</Badge>
+                </div>
+                {myRole && (
+                  <Button to={`/events/${id}/manage`} variant="outline" size="sm">
+                    <Settings size={14} /> Manage event
+                  </Button>
+                )}
               </div>
 
               <h1 className="mt-4 font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">

@@ -15,7 +15,7 @@ from .schema import EventCategoryCreate, EventCategoryRead
 from .schema import EventSessionCreate, EventSessionRead
 from .schema import EventRegistrationCreate, EventRegistrationRead, MyRegistrationRead
 from .schema import CheckInCreate, CheckInRead
-from .schema import EventOrganiserAdd, EventOrganiserRead
+from .schema import EventOrganiserAdd, EventOrganiserRead, MyOrganiserRoleRead
 
 from .services import (
     EventService,
@@ -190,6 +190,27 @@ def register_for_event(
 # =========================================================
 # EVENT ORGANISER ROUTES
 # =========================================================
+
+@router.get(
+    "/{event_id}/my-role",
+    response_model=MyOrganiserRoleRead,
+    summary="Get the current user's organiser role on this event, if any"
+)
+def get_my_role(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Lets the frontend decide whether to show event-management UI.
+
+    This is a UI-visibility hint only, not a security boundary - every
+    actual management endpoint (delete, registrations, organisers,
+    check-ins) re-checks RBAC independently regardless of this response.
+    """
+    role = EventService.get_my_role(db, event_id, current_user.user_id)
+    return MyOrganiserRoleRead(role=role)
+
 
 @router.post(
     "/{event_id}/organisers",

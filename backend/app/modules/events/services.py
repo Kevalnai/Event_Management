@@ -29,6 +29,7 @@ from .repository import (
 from .schema import EventCreate, EventRegistrationCreate, EventOrganiserAdd
 from .schema import EventSessionCreate, EventCategoryCreate
 from .schema import CheckInCreate
+from ..users.repository import get_user_by_email
 
 
 # -------------------- CATEGORY SERVICE --------------------
@@ -220,8 +221,18 @@ class EventService:
         if not EventRepository.get_by_id(db, event_id):
             raise HTTPException(status_code=404, detail="Event not found")
 
+        target_user_id = payload.user_id
+        if payload.email:
+            target_user = get_user_by_email(db, payload.email)
+            if not target_user:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No account found with that email"
+                )
+            target_user_id = target_user.user_id
+
         existing = EventOrganiserRepository.get_user_role(
-            db, payload.user_id, event_id
+            db, target_user_id, event_id
         )
         if existing:
             existing.role = payload.role
@@ -233,10 +244,21 @@ class EventService:
             db,
             EventOrganiser(
                 event_id=event_id,
-                user_id=payload.user_id,
+                user_id=target_user_id,
                 role=payload.role
             )
         )
+
+    @staticmethod
+    def get_my_role(
+        db: Session,
+        event_id: UUID,
+        user_id: UUID
+    ) -> OrganiserRole | None:
+        """The caller's own organiser role on this event, or None. Used only
+        to drive frontend UI - never treated as a security decision itself."""
+        organiser = EventOrganiserRepository.get_user_role(db, user_id, event_id)
+        return organiser.role if organiser else None
 
     @staticmethod
     def list_organisers(
@@ -346,10 +368,26 @@ class CheckInService:
             registration_id
         )
 
-        if not registration:
+        # Keep the 404 generic rather than distinguishing "doesn't exist" from
+        # "belongs to a different event" - an organiser of event A has no
+        # legitimate reason to learn that a given registration_id belongs to
+        # event B, and this also closes the door on checking it in there.
+        if not registration or registration.event_id != event_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Registration not found"
+            )
+
+        if registration.status != RegistrationStatus.confirmed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration is not confirmed - cannot check in"
+            )
+
+        if registration.checkins:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Already checked in"
             )
 
         checkin = CheckIn(

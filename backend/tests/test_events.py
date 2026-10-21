@@ -433,3 +433,125 @@ def test_manual_checkin_allows_volunteer_blocks_outsider(client, make_user, make
     )
     assert allowed.status_code == 201
     assert allowed.json()["gate"] == "Main"
+
+
+def test_manual_checkin_rejects_duplicate(client, make_user, make_event):
+    _, owner_headers = make_user("host16")
+    _, attendee_headers = make_user("attendee6")
+    event = make_event(owner_headers)
+
+    registration = client.post(
+        f"/events/{event['event_id']}/register",
+        json={"name": "Attendee Six", "email": "a6@example.com", "phone": "5557777"},
+        headers=attendee_headers,
+    ).json()
+
+    first = client.post(
+        f"/events/events/{event['event_id']}/checkins/{registration['registration_id']}",
+        json={"gate": "Main"},
+        headers=owner_headers,
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        f"/events/events/{event['event_id']}/checkins/{registration['registration_id']}",
+        json={"gate": "Main"},
+        headers=owner_headers,
+    )
+    assert second.status_code == 409
+
+
+def test_manual_checkin_rejects_unconfirmed_registration(client, make_user, make_event):
+    _, owner_headers = make_user("host17")
+    _, attendee_headers = make_user("attendee7")
+    event = make_event(owner_headers, price=20)
+
+    registration = client.post(
+        f"/events/{event['event_id']}/register",
+        json={"name": "Attendee Seven", "email": "a7@example.com", "phone": "5558888"},
+        headers=attendee_headers,
+    ).json()
+    assert registration["status"] == "pending"
+
+    denied = client.post(
+        f"/events/events/{event['event_id']}/checkins/{registration['registration_id']}",
+        json={"gate": "Main"},
+        headers=owner_headers,
+    )
+    assert denied.status_code == 400
+
+
+def test_manual_checkin_rejects_registration_from_a_different_event(client, make_user, make_event):
+    _, owner_headers = make_user("host18")
+    _, attendee_headers = make_user("attendee8")
+    event_a = make_event(owner_headers, title="Event A")
+    event_b = make_event(owner_headers, title="Event B")
+
+    registration = client.post(
+        f"/events/{event_a['event_id']}/register",
+        json={"name": "Attendee Eight", "email": "a8@example.com", "phone": "5559999"},
+        headers=attendee_headers,
+    ).json()
+
+    # Same admin, but tries to check this event-A registration in under event B.
+    cross_event = client.post(
+        f"/events/events/{event_b['event_id']}/checkins/{registration['registration_id']}",
+        json={"gate": "Main"},
+        headers=owner_headers,
+    )
+    assert cross_event.status_code == 404
+
+
+def test_my_role_reflects_actual_organiser_status(client, make_user, make_event):
+    owner, owner_headers = make_user("host19")
+    _, outsider_headers = make_user("outsider2")
+    event = make_event(owner_headers)
+
+    mine = client.get(f"/events/{event['event_id']}/my-role", headers=owner_headers)
+    assert mine.status_code == 200
+    assert mine.json()["role"] == "admin"
+
+    not_organiser = client.get(f"/events/{event['event_id']}/my-role", headers=outsider_headers)
+    assert not_organiser.status_code == 200
+    assert not_organiser.json()["role"] is None
+
+
+def test_add_organiser_by_email(client, make_user, make_event):
+    _, owner_headers = make_user("host20")
+    staff_user, staff_headers = make_user("staffer3", email="staffer3@example.com")
+    event = make_event(owner_headers)
+
+    granted = client.post(
+        f"/events/{event['event_id']}/organisers",
+        json={"email": "staffer3@example.com", "role": "staff"},
+        headers=owner_headers,
+    )
+    assert granted.status_code == 201
+    assert granted.json()["user_id"] == staff_user["user_id"]
+
+    mine = client.get(f"/events/{event['event_id']}/my-role", headers=staff_headers)
+    assert mine.json()["role"] == "staff"
+
+
+def test_add_organiser_by_unknown_email_returns_404(client, make_user, make_event):
+    _, owner_headers = make_user("host21")
+    event = make_event(owner_headers)
+
+    denied = client.post(
+        f"/events/{event['event_id']}/organisers",
+        json={"email": "nobody-like-this-exists@example.com", "role": "staff"},
+        headers=owner_headers,
+    )
+    assert denied.status_code == 404
+
+
+def test_add_organiser_requires_user_id_or_email(client, make_user, make_event):
+    _, owner_headers = make_user("host22")
+    event = make_event(owner_headers)
+
+    denied = client.post(
+        f"/events/{event['event_id']}/organisers",
+        json={"role": "staff"},
+        headers=owner_headers,
+    )
+    assert denied.status_code == 422

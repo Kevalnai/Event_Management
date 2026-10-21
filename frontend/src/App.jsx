@@ -10,6 +10,7 @@ import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import Dashboard from "./pages/Dashboard";
 import CreateEvent from "./pages/CreateEvent";
+import ManageEvent from "./pages/ManageEvent";
 import NotFound from "./pages/NotFound";
 
 export default function App() {
@@ -51,6 +52,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:eventId/manage"
+          element={
+            <ProtectedRoute>
+              <ManageEvent />
             </ProtectedRoute>
           }
         />

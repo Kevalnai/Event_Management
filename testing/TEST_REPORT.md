@@ -1,6 +1,6 @@
 # Ripple — Test Report
 
-**Run date:** 2026-10-21
+**Run date:** 2026-10-22
 **Environment:** Python 3.14.6 · FastAPI 0.122.0 · pytest 9.1.1 · Node v24.18.0 · Vitest 5.0.5
 **Database under test:** a dedicated `event_management_test` Postgres database (never the dev/prod database)
 **Stripe:** every test mocks the Stripe SDK directly — no test in this suite makes a real network call to Stripe
@@ -9,13 +9,36 @@
 
 | Suite | Framework | Tests | Passed | Failed | Statement coverage |
 |---|---|---|---|---|---|
-| Backend (`backend/tests/`) | pytest + Starlette `TestClient` | 65 | 65 | 0 | 94% |
+| Backend (`backend/tests/`) | pytest + Starlette `TestClient` | 72 | 72 | 0 | 94% |
 | Frontend (`frontend/src/**/*.test.jsx`) | Vitest + React Testing Library | 42 | 42 | 0 | 27% (see note below) |
-| **Total** | | **107** | **107** | **0** | |
+| **Total** | | **114** | **114** | **0** | |
 
 Full raw output: [`backend-results.txt`](./backend-results.txt), [`frontend-results.txt`](./frontend-results.txt), and a browsable HTML report at [`backend-report.html`](./backend-report.html). Both suites now also run automatically on every push/PR via [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
 **Frontend coverage note:** 27% is a true but incomplete picture — it reflects that this first pass tests every pure utility (`lib/format.js`, `lib/cover.js`, `lib/isUrl.js`), the two most reused UI primitives (`Button`, `EventCard`), `AuthContext` end-to-end, and the two auth pages (`Login`, `Register`). It does **not** yet cover the heavier pages (`Home`, `Events`, `EventDetail`, `Dashboard`, `CreateEvent`, `Checkout`, `Navbar`) — those need Stripe Elements, router, and multi-endpoint API mocking to test properly and are listed under Follow-ups.
+
+## Manage-event feature + check-in security fixes (2026-10-22)
+
+The RBAC and backend routes for event management (delete event, view registrations, grant organiser roles, check attendees in) had existed since the security hardening pass, but there was no frontend UI calling any of them - an admin's only way to use these features was the raw API. Closed that gap with a real `/events/:eventId/manage` page, gated on the caller's actual organiser role (admin/staff/volunteer), with sections that appear only for roles the backend would actually authorize:
+
+| Section | Who sees it | Backed by |
+|---|---|---|
+| Registrant list + per-row check-in | admin, staff | `GET /events/{id}/registrations` |
+| Organiser list + grant-role-by-email form | admin, staff view · admin grants | `GET`/`POST /events/{id}/organisers` |
+| Manual check-in by registration ID | admin, staff, volunteer | `POST /events/events/{id}/checkins/{registration_id}` |
+| Delete event (type-to-confirm) | admin | `DELETE /events/events/{id}` |
+
+A new `GET /events/{event_id}/my-role` endpoint drives which sections render - it returns only the caller's own role (or null) and carries no privileges itself; every actual management action re-checks RBAC independently server-side, so a tampered or stale frontend state can't grant access the backend wouldn't also allow. Verified live in a real browser: an admin and a staff member (granted by email) both see the correct panels, an unrelated third user hitting the URL directly gets a clean "not an organiser" screen with no management controls rendered, and a real check-in/organiser-grant/event-delete all round-tripped through the actual running backend.
+
+Granting a role previously required knowing the target's raw UUID — `EventOrganiserAdd` now also accepts an `email`, resolved server-side via the existing `users/repository.get_user_by_email`, so the UI form just takes an email like any normal invite flow.
+
+**Three real gaps found and fixed in the existing check-in code while building this** (none were reachable from the UI before, since nothing called these endpoints, but they were live and callable via direct API requests):
+
+1. **Manual check-in didn't verify the registration belonged to the event in the URL.** `POST /events/events/{event_id}/checkins/{registration_id}` looked up the registration by ID alone — an organiser of event A could check in (or probe the existence of) a registration from event B just by guessing/supplying its ID. Fixed by rejecting with the same generic 404 when `registration.event_id != event_id`, so a mismatch is indistinguishable from "doesn't exist."
+2. **No duplicate-check-in protection on the manual path**, unlike the QR scanner which already had it. Same attendee could be "checked in" an unlimited number of times. Fixed by reusing the same `if registration.checkins:` → `409` pattern the scanner already used.
+3. **Neither the manual check-in nor the QR scanner verified the registration was actually `confirmed`** before letting someone in — an unpaid/pending registration could be checked in. Fixed in both places with an explicit status check before the check-in is recorded.
+
+New backend tests: `test_manual_checkin_rejects_duplicate`, `test_manual_checkin_rejects_unconfirmed_registration`, `test_manual_checkin_rejects_registration_from_a_different_event`, `test_my_role_reflects_actual_organiser_status`, `test_add_organiser_by_email`, `test_add_organiser_by_unknown_email_returns_404`, `test_add_organiser_requires_user_id_or_email` (7 new, all in `test_events.py`).
 
 ## Security hardening pass (2026-10-21)
 
@@ -72,7 +95,7 @@ The backend suite creates its own tables in `event_management_test` on first run
 
 ---
 
-## Backend test cases (62)
+## Backend test cases (72)
 
 ### `tests/test_auth.py` — registration, login, sessions, global RBAC, password reset (23)
 
@@ -100,7 +123,7 @@ The backend suite creates its own tables in `event_management_test` on first run
 | `test_register_rejects_weak_passwords` *(×3)* | 422 for too-short, all-letters, and all-digits passwords |
 | `test_promote_rejects_invalid_role_value` | 422 if a role other than `"user"`/`"admin"` is sent |
 
-### `tests/test_events.py` — categories, event CRUD, per-event RBAC, sessions, registrations, check-ins (28)
+### `tests/test_events.py` — categories, event CRUD, per-event RBAC, sessions, registrations, check-ins (35)
 
 | Test | Verifies |
 |---|---|
@@ -128,6 +151,13 @@ The backend suite creates its own tables in `event_management_test` on first run
 | `test_list_events_rejects_oversized_limit` | 422 for `limit=1000` (max is 100) |
 | `test_duplicate_event_title_is_a_clean_400` | A duplicate title is a clean 400, not a raw 500 (found live - see "Live end-to-end verification" above) |
 | `test_unexpected_server_error_returns_safe_json_not_a_raw_crash` | A genuinely unexpected exception still returns a safe, CORS-correct JSON response, never a raw crash |
+| `test_manual_checkin_rejects_duplicate` | A second manual check-in of the same registration is 409, not silently allowed |
+| `test_manual_checkin_rejects_unconfirmed_registration` | A pending (unpaid) registration can't be checked in |
+| `test_manual_checkin_rejects_registration_from_a_different_event` | An organiser of event A can't check in a registration that belongs to event B (regression test) |
+| `test_my_role_reflects_actual_organiser_status` | `GET /events/{id}/my-role` returns the caller's real role, and `null` for a non-organiser |
+| `test_add_organiser_by_email` | Granting a role by email resolves to the right user |
+| `test_add_organiser_by_unknown_email_returns_404` | Granting a role to an email with no account is a clean 404 |
+| `test_add_organiser_requires_user_id_or_email` | 422 if neither `user_id` nor `email` is provided |
 
 ### `tests/test_rate_limiting.py` — rate limiting (2)
 

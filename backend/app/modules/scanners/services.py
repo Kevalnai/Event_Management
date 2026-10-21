@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
 
-from app.modules.events.models import CheckIn, OrganiserRole
+from app.modules.events.models import CheckIn, OrganiserRole, RegistrationStatus
 from app.modules.events.services import RBACService
 from app.modules.tickets.models import Ticket
 
@@ -35,6 +35,9 @@ class ScannerService:
                 OrganiserRole.volunteer
             ]
         )
+
+        if registration.status != RegistrationStatus.confirmed:
+            raise HTTPException(status_code=400, detail="Registration is not confirmed - cannot check in")
 
         if registration.checkins:
             raise HTTPException(status_code=409, detail="Already checked in")

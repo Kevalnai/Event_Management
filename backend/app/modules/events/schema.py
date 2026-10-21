@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator
 from uuid import UUID, uuid4
 from datetime import datetime
 from typing import Optional
@@ -103,13 +103,38 @@ class EventOrganiserCreate(EventOrganiserBase):
 
 
 class EventOrganiserAdd(BaseSchema):
-    user_id: UUID
+    """Grant a role by user_id, or by email when the caller only knows the
+    person's email (the normal case from the UI). Exactly one must be set."""
+    user_id: UUID | None = None
+    email: EmailStr | None = None
     role: OrganiserRole
+
+    @model_validator(mode="after")
+    def _require_one_identifier(self):
+        if not self.user_id and not self.email:
+            raise ValueError("Provide either user_id or email")
+        return self
+
+
+class OrganiserUserSummary(BaseSchema):
+    """Just enough to identify who an organiser is in the manage-event UI -
+    deliberately not the full UserResponse (no role, no created_at)."""
+    user_id: UUID
+    username: str
+    email: EmailStr
 
 
 class EventOrganiserRead(EventOrganiserBase):
     id: UUID
     added_at: datetime
+    user: OrganiserUserSummary
+
+
+class MyOrganiserRoleRead(BaseSchema):
+    """The caller's own organiser role on this event, or null if they have
+    none. Purely a UI-visibility hint - every actual management endpoint
+    re-checks RBAC independently, so this response carries no privileges."""
+    role: OrganiserRole | None = None
 
 
 # ======================================================
