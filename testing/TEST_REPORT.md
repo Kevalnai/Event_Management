@@ -1,6 +1,6 @@
 # Ripple — Test Report
 
-**Run date:** 2026-10-22
+**Run date:** 2026-10-22 (updated later the same day - see "Closing the frontend coverage gap" below)
 **Environment:** Python 3.14.6 · FastAPI 0.122.0 · pytest 9.1.1 · Node v24.18.0 · Vitest 5.0.5
 **Database under test:** a dedicated `event_management_test` Postgres database (never the dev/prod database)
 **Stripe:** every test mocks the Stripe SDK directly — no test in this suite makes a real network call to Stripe
@@ -9,13 +9,31 @@
 
 | Suite | Framework | Tests | Passed | Failed | Statement coverage |
 |---|---|---|---|---|---|
-| Backend (`backend/tests/`) | pytest + Starlette `TestClient` | 72 | 72 | 0 | 94% |
+| Backend (`backend/tests/`) | pytest + Starlette `TestClient` | 73 | 73 | 0 | 94% |
 | Frontend (`frontend/src/**/*.test.jsx`) | Vitest + React Testing Library | 42 | 42 | 0 | 27% (see note below) |
-| **Total** | | **114** | **114** | **0** | |
+| **Total** | | **115** | **115** | **0** | |
 
 Full raw output: [`backend-results.txt`](./backend-results.txt), [`frontend-results.txt`](./frontend-results.txt), and a browsable HTML report at [`backend-report.html`](./backend-report.html). Both suites now also run automatically on every push/PR via [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
 **Frontend coverage note:** 27% is a true but incomplete picture — it reflects that this first pass tests every pure utility (`lib/format.js`, `lib/cover.js`, `lib/isUrl.js`), the two most reused UI primitives (`Button`, `EventCard`), `AuthContext` end-to-end, and the two auth pages (`Login`, `Register`). It does **not** yet cover the heavier pages (`Home`, `Events`, `EventDetail`, `Dashboard`, `CreateEvent`, `Checkout`, `Navbar`) — those need Stripe Elements, router, and multi-endpoint API mocking to test properly and are listed under Follow-ups.
+
+## Closing the frontend coverage gap + a real stacking-context bug (2026-10-22, later same day)
+
+After the manage-event page shipped, a full audit (every backend route cross-referenced against every frontend API call) found the gap was much bigger than one page: no password-reset UI, no profile page, no way for a host to find their own events at all (no backend endpoint even existed for it), no QR-scanner UI for door staff, and `logout()` never actually revoked the refresh token server-side. Closed all of it:
+
+- **`GET /events/me/organised`** (new backend endpoint + `EventOrganiserRepository.get_by_user`) - the only way a host could find an event they organise was bookmarking its URL; there was no reverse lookup from user to events. Now powers a "My events" tab on the dashboard.
+- **`/forgot-password` and `/reset-password`** pages, wired to the password-reset endpoints that existed but had zero UI. In dev (`EXPOSE_PASSWORD_RESET_TOKEN=true`), the reset token is shown inline with a direct link to the reset form, since no email provider is wired up yet.
+- **`/profile`** page - `PATCH /auth/me` existed but was completely unreachable from the UI.
+- **`/scanner`** page - a real camera-based QR scanner (`qr-scanner` library) with a manual-entry fallback, calling `POST /scanner/scan`. This endpoint had no frontend at all before.
+- **Dashboard** split into "My tickets" / "My events" tabs; the events tab lists everything the user organises with a direct link into `/events/:id/manage`.
+- **`ManageEvent`** gained a Schedule panel (`POST /events/events/{id}/sessions` had no UI either) and a link to the scanner.
+- **`logout()` now calls `POST /auth/logout`** to revoke the refresh token server-side, instead of only clearing it client-side (a stolen/leaked refresh token would previously have stayed valid after the user "logged out").
+
+**A real bug found during live verification, not a test artifact.** The new "Manage event" button sits in the header row of `EventDetail`'s content card, which intentionally overlaps the hero banner above it by `-mt-16`. That overlap region was silently unclickable - confirmed via `document.elementFromPoint()` at the button's actual screen coordinates, which returned the banner's dark gradient overlay div instead of the button underneath it. Root cause: the banner wrapper has `position: relative` (needed so its own absolutely-positioned overlay child has something to anchor to), and per CSS stacking rules, a positioned element paints *after* static siblings regardless of DOM order - so the later-in-DOM, but `position: static`, content card was painting *underneath* the earlier banner. The category/price badges and the new "Manage event" button both sat in that dead zone, visually darkened and non-interactive. This is likely the actual root cause of the original "nothing happens when I click" report. Fixed with a one-line `relative z-10` on the overlapping card's container, confirmed via `elementFromPoint` before/after and a full-page screenshot.
+
+All of it verified end-to-end in a real headless browser, not just asserted: register → see both dashboard tabs → create an event → click "Manage event" from the live button (not a direct URL) → add a session → see it appear → see the event under "My events" → edit and save the profile → load the scanner page → log out (and confirm the login screen returns) → request a password reset → use the dev-mode token to set a new password → log in with the new password. 24/24 checks passed, zero browser console errors.
+
+73 backend tests (1 new: `test_my_organised_events_lists_every_event_i_organise`), 42 frontend tests (one existing `AuthContext` test updated for the new `logout()` behavior - it now asserts `POST /auth/logout` is actually called with the refresh token, not just that local state clears).
 
 ## Manage-event feature + check-in security fixes (2026-10-22)
 

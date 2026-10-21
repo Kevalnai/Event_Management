@@ -15,7 +15,7 @@ from .schema import EventCategoryCreate, EventCategoryRead
 from .schema import EventSessionCreate, EventSessionRead
 from .schema import EventRegistrationCreate, EventRegistrationRead, MyRegistrationRead
 from .schema import CheckInCreate, CheckInRead
-from .schema import EventOrganiserAdd, EventOrganiserRead, MyOrganiserRoleRead
+from .schema import EventOrganiserAdd, EventOrganiserRead, MyOrganiserRoleRead, MyOrganisedEventRead
 
 from .services import (
     EventService,
@@ -75,6 +75,22 @@ def my_registrations(
     offset: int = Query(0, ge=0)
 ):
     return EventService.list_my_registrations(db, current_user.user_id, limit=limit, offset=offset)
+
+
+@router.get(
+    "/me/organised",
+    response_model=list[MyOrganisedEventRead],
+    summary="List every event the current user organises"
+)
+def my_organised_events(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Lets a host (or staff/volunteer) find the events they have a role on
+    without already knowing the event's URL - powers the "My events" tab.
+    """
+    return EventService.list_my_organised_events(db, current_user.user_id)
 
 
 # =========================================================

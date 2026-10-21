@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { AlertTriangle, CheckCircle2, Shield, Trash2, UserPlus, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarPlus,
+  CheckCircle2,
+  ScanLine,
+  Shield,
+  Trash2,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { api, apiErrorMessage } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { formatDate, formatTime } from "../lib/format";
@@ -23,6 +32,7 @@ const CAN_VIEW_ORGANISERS = ["admin", "staff"];
 const CAN_MANAGE_ORGANISERS = ["admin"];
 const CAN_DELETE_EVENT = ["admin"];
 const CAN_CHECK_IN = ["admin", "staff", "volunteer"];
+const CAN_MANAGE_SESSIONS = ["admin", "staff"];
 
 export default function ManageEvent() {
   const { eventId } = useParams();
@@ -34,14 +44,17 @@ export default function ManageEvent() {
   const [loading, setLoading] = useState(true);
   const [accessError, setAccessError] = useState("");
 
+  function loadEvent() {
+    return api.get(`/events/${eventId}`).then(({ data }) => setEvent(data));
+  }
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
 
-    Promise.all([api.get(`/events/${eventId}`), api.get(`/events/${eventId}/my-role`)])
-      .then(([eventRes, roleRes]) => {
+    Promise.all([loadEvent(), api.get(`/events/${eventId}/my-role`)])
+      .then(([, roleRes]) => {
         if (cancelled) return;
-        setEvent(eventRes.data);
         setMyRole(roleRes.data.role);
         if (!roleRes.data.role) {
           setAccessError("You're not an organiser of this event, so there's nothing to manage here.");
@@ -81,15 +94,25 @@ export default function ManageEvent() {
           </Link>
           <h1 className="mt-2 font-display text-3xl font-bold text-ink">{event.title}</h1>
         </div>
-        <Badge tone={ROLE_TONE[myRole]}>
-          <Shield size={12} /> You're {myRole} here
-        </Badge>
+        <div className="flex items-center gap-2">
+          {CAN_CHECK_IN.includes(myRole) && (
+            <Button to="/scanner" variant="outline" size="sm">
+              <ScanLine size={14} /> Scan tickets
+            </Button>
+          )}
+          <Badge tone={ROLE_TONE[myRole]}>
+            <Shield size={12} /> You're {myRole} here
+          </Badge>
+        </div>
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {CAN_VIEW_REGISTRATIONS.includes(myRole) && (
             <RegistrationsPanel eventId={eventId} myRole={myRole} />
+          )}
+          {CAN_MANAGE_SESSIONS.includes(myRole) && (
+            <SessionsPanel eventId={eventId} sessions={event.sessions} onSessionAdded={loadEvent} />
           )}
           {CAN_VIEW_ORGANISERS.includes(myRole) && (
             <OrganisersPanel eventId={eventId} myRole={myRole} currentUserId={user?.user_id} />
@@ -207,6 +230,112 @@ function RegistrationsPanel({ eventId, myRole }) {
             </tbody>
           </table>
         </div>
+      )}
+    </Panel>
+  );
+}
+
+function SessionsPanel({ eventId, sessions = [], onSessionAdded }) {
+  const [adding, setAdding] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ title: "", speaker: "", start_time: "", end_time: "", description: "" });
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      await api.post(`/events/events/${eventId}/sessions`, form);
+      await onSessionAdded();
+      setForm({ title: "", speaker: "", start_time: "", end_time: "", description: "" });
+      setAdding(false);
+    } catch (err) {
+      setError(apiErrorMessage(err, "Couldn't add that session."));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Panel icon={CalendarPlus} title={`Schedule (${sessions.length})`}>
+      {sessions.length === 0 && !adding && (
+        <p className="text-sm text-ink-soft">No sessions added yet.</p>
+      )}
+      {sessions.length > 0 && (
+        <div className="space-y-3">
+          {sessions.map((s) => (
+            <div key={s.session_id} className="flex items-start gap-4 rounded-2xl bg-cream p-4">
+              <div className="w-16 shrink-0 text-xs font-bold uppercase text-violet-600">
+                {formatTime(s.start_time)}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-ink">{s.title}</p>
+                <p className="text-xs text-ink-soft">{s.speaker}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {adding ? (
+        <form onSubmit={handleSubmit} className="mt-5 space-y-3 border-t border-ink/5 pt-5">
+          <Alert>{error}</Alert>
+          <Field label="Title">
+            <input
+              required
+              className={inputClass}
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
+          </Field>
+          <Field label="Speaker">
+            <input
+              required
+              className={inputClass}
+              value={form.speaker}
+              onChange={(e) => setForm({ ...form, speaker: e.target.value })}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Starts">
+              <input
+                required
+                type="datetime-local"
+                className={inputClass}
+                value={form.start_time}
+                onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+              />
+            </Field>
+            <Field label="Ends">
+              <input
+                required
+                type="datetime-local"
+                className={inputClass}
+                value={form.end_time}
+                onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+              />
+            </Field>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => setAdding(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" className="flex-1" disabled={submitting}>
+              {submitting ? "Adding…" : "Add session"}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <Button variant="outline" size="sm" className="mt-4 w-full" onClick={() => setAdding(true)}>
+          <CalendarPlus size={14} /> Add a session
+        </Button>
       )}
     </Panel>
   );

@@ -120,7 +120,7 @@ export default function EventDetail() {
         <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent" />
       </div>
 
-      <Section className="-mt-16 pb-24">
+      <Section className="relative z-10 -mt-16 pb-24">
         <div className="grid gap-8 lg:grid-cols-3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}

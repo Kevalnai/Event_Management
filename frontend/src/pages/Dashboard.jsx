@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import QRCode from "react-qr-code";
-import { Calendar, MapPin, Ticket, X } from "lucide-react";
+import { Calendar, MapPin, Shield, Ticket, X } from "lucide-react";
 import { api, apiErrorMessage } from "../lib/api";
 import { formatDate, formatPrice, formatTime } from "../lib/format";
 import { coverFor } from "../lib/cover";
@@ -14,9 +14,48 @@ import Section, { Eyebrow } from "../components/ui/Section";
 import { useAuth } from "../context/AuthContext";
 
 const STATUS_TONE = { confirmed: "lime", pending: "coral", cancelled: "outline" };
+const ROLE_TONE = { admin: "coral", staff: "violet", volunteer: "outline" };
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [tab, setTab] = useState("tickets");
+
+  return (
+    <Section className="py-14 sm:py-20">
+      <Eyebrow>Your account</Eyebrow>
+      <h1 className="font-display text-4xl font-bold tracking-tight text-ink sm:text-5xl">
+        Hey {user?.username} 👋
+      </h1>
+      <p className="mt-3 text-ink-soft">Everything you're attending, and everything you host.</p>
+
+      <div className="mt-6 flex gap-2 border-b border-ink/10">
+        <TabButton active={tab === "tickets"} onClick={() => setTab("tickets")}>
+          My tickets
+        </TabButton>
+        <TabButton active={tab === "events"} onClick={() => setTab("events")}>
+          My events
+        </TabButton>
+      </div>
+
+      <div className="mt-6">{tab === "tickets" ? <MyTickets /> : <MyEvents />}</div>
+    </Section>
+  );
+}
+
+function TabButton({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`-mb-px border-b-2 px-3 pb-3 text-sm font-semibold transition-colors ${
+        active ? "border-ink text-ink" : "border-transparent text-ink-soft hover:text-ink"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MyTickets() {
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -47,18 +86,10 @@ export default function Dashboard() {
   }
 
   return (
-    <Section className="py-14 sm:py-20">
-      <Eyebrow>Your account</Eyebrow>
-      <h1 className="font-display text-4xl font-bold tracking-tight text-ink sm:text-5xl">
-        Hey {user?.username} 👋
-      </h1>
-      <p className="mt-3 text-ink-soft">Everything you've RSVP'd or bought a ticket for.</p>
+    <>
+      <Alert>{error}</Alert>
 
-      <div className="mt-8">
-        <Alert>{error}</Alert>
-      </div>
-
-      <div className="mt-6">
+      <div className="mt-2">
         {loading ? (
           <Loader full={false} />
         ) : registrations.length ? (
@@ -91,7 +122,82 @@ export default function Dashboard() {
           <QrModal registration={activeTicket} onClose={() => setActiveTicket(null)} />
         )}
       </AnimatePresence>
-    </Section>
+    </>
+  );
+}
+
+function MyEvents() {
+  const [organised, setOrganised] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api
+      .get("/events/me/organised")
+      .then(({ data }) => setOrganised(data))
+      .catch(() => setError("Couldn't load the events you organise."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Loader full={false} />;
+
+  return (
+    <>
+      <Alert>{error}</Alert>
+      {organised.length ? (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {organised.map(({ event, role }) => {
+            const cover = coverFor(event.event_id || event.title);
+            const hasBanner = isImageUrl(event.banner_url);
+            return (
+              <motion.div
+                key={event.event_id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="overflow-hidden rounded-3xl bg-white shadow-soft"
+              >
+                <div
+                  className={`relative flex h-28 items-center justify-center bg-gradient-to-br ${cover.gradient}`}
+                  style={
+                    hasBanner
+                      ? { backgroundImage: `url(${event.banner_url})`, backgroundSize: "cover", backgroundPosition: "center" }
+                      : undefined
+                  }
+                >
+                  {!hasBanner && <span className="font-display text-4xl text-white/25">{cover.glyph}</span>}
+                  <div className="absolute right-3 top-3">
+                    <Badge tone={ROLE_TONE[role]}>
+                      <Shield size={11} /> {role}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="space-y-3 p-5">
+                  <h3 className="font-display text-base font-bold leading-snug text-ink line-clamp-2">
+                    {event.title}
+                  </h3>
+                  <p className="flex items-center gap-1.5 text-xs text-ink-soft">
+                    <Calendar size={13} className="text-violet-500" /> {formatDate(event.start_date)}
+                  </p>
+                  <Button to={`/events/${event.event_id}/manage`} size="sm" className="mt-2 w-full">
+                    Manage
+                  </Button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-3xl border-2 border-dashed border-ink/10 py-20 text-center">
+          <p className="font-display text-xl font-bold text-ink">You're not organising anything yet</p>
+          <p className="mt-2 text-sm text-ink-soft">
+            Host an event and you'll be able to manage it right here.
+          </p>
+          <Button to="/create-event" className="mt-6">
+            Host an event
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 

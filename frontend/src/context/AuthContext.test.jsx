@@ -6,11 +6,12 @@ vi.mock('../lib/api', () => ({
   api: { get: vi.fn(), post: vi.fn() },
   apiErrorMessage: (err, fallback) => err?.response?.data?.detail || fallback,
   getAccessToken: vi.fn(),
+  getRefreshToken: vi.fn(),
   setTokens: vi.fn(),
   clearTokens: vi.fn(),
 }));
 
-import { api, getAccessToken, setTokens, clearTokens } from '../lib/api';
+import { api, getAccessToken, getRefreshToken, setTokens, clearTokens } from '../lib/api';
 
 function wrapper({ children }) {
   return <AuthProvider>{children}</AuthProvider>;
@@ -81,8 +82,10 @@ describe('AuthProvider / useAuth', () => {
     expect(setTokens).not.toHaveBeenCalled();
   });
 
-  it('logout() clears tokens and the user', async () => {
+  it('logout() clears tokens and the user, and revokes the refresh token server-side', async () => {
     getAccessToken.mockReturnValue(null);
+    getRefreshToken.mockReturnValue('a-refresh-token');
+    api.post.mockResolvedValue({});
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -92,5 +95,6 @@ describe('AuthProvider / useAuth', () => {
 
     expect(clearTokens).toHaveBeenCalled();
     expect(result.current.user).toBeNull();
+    expect(api.post).toHaveBeenCalledWith('/auth/logout', { refresh_token: 'a-refresh-token' });
   });
 });

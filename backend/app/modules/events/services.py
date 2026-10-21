@@ -250,6 +250,12 @@ class EventService:
         )
 
     @staticmethod
+    def list_my_organised_events(db: Session, user_id: UUID) -> list[EventOrganiser]:
+        """Every event the current user organises, any role - powers the
+        'My events' tab so a host isn't limited to bookmarking event URLs."""
+        return EventOrganiserRepository.get_by_user(db, user_id)
+
+    @staticmethod
     def get_my_role(
         db: Session,
         event_id: UUID,

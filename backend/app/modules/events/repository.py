@@ -103,6 +103,17 @@ class EventOrganiserRepository:
             .all()
         )
 
+    @staticmethod
+    def get_by_user(db: Session, user_id: UUID) -> list[EventOrganiser]:
+        """Every event this user organises (any role), newest first."""
+        return (
+            db.query(EventOrganiser)
+            .filter(EventOrganiser.user_id == user_id)
+            .join(Event, Event.event_id == EventOrganiser.event_id)
+            .order_by(Event.start_date.desc())
+            .all()
+        )
+
 
 # -------------------- SESSION --------------------
 

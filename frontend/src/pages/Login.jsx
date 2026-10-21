@@ -53,15 +53,23 @@ export default function Login() {
               onChange={(e) => setForm({ ...form, identifier: e.target.value })}
             />
           </Field>
-          <Field label="Password">
-            <input
-              required
-              type="password"
-              className={inputClass}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-          </Field>
+          <div>
+            <Field label="Password">
+              <input
+                required
+                type="password"
+                className={inputClass}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              />
+            </Field>
+            <Link
+              to="/forgot-password"
+              className="mt-1.5 block text-right text-xs font-semibold text-ink-soft hover:text-ink"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? "Logging in…" : "Log in"}
           </Button>

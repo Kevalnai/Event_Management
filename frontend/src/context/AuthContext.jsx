@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { api, apiErrorMessage, clearTokens, getAccessToken, setTokens } from "../lib/api";
+import { api, apiErrorMessage, clearTokens, getAccessToken, getRefreshToken, setTokens } from "../lib/api";
 
 const AuthContext = createContext(null);
 
@@ -54,12 +54,31 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
+    const refreshToken = getRefreshToken();
+    // Clear local state immediately so the UI responds instantly, then
+    // revoke server-side in the background so the refresh token can't be
+    // replayed afterward - best-effort, failure here doesn't affect the user.
     clearTokens();
     setUser(null);
+    if (refreshToken) {
+      api.post("/auth/logout", { refresh_token: refreshToken }).catch(() => {});
+    }
+  }
+
+  async function updateProfile(payload) {
+    try {
+      const { data } = await api.patch("/auth/me", payload);
+      setUser(data);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: apiErrorMessage(error, "Couldn't update your profile.") };
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refresh: loadMe }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, logout, updateProfile, refresh: loadMe }}
+    >
       {children}
     </AuthContext.Provider>
   );

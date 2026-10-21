@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, Plus, X } from "lucide-react";
+import { Menu, Plus, ScanLine, X } from "lucide-react";
 import Logo from "../ui/Logo";
 import Button from "../ui/Button";
 import { useAuth } from "../../context/AuthContext";
@@ -57,12 +57,17 @@ export default function Navbar() {
                 }`
               }
             >
-              My tickets
+              Dashboard
             </NavLink>
           )}
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
+          {user && (
+            <Button to="/scanner" variant="ghost" size="sm">
+              <ScanLine size={16} /> Scan
+            </Button>
+          )}
           <Button to="/create-event" variant="outline" size="sm">
             <Plus size={16} /> Host an event
           </Button>
@@ -92,6 +97,12 @@ export default function Navbar() {
                       className="block rounded-xl px-3 py-2 text-sm font-medium text-ink hover:bg-cream"
                     >
                       Dashboard
+                    </Link>
+                    <Link
+                      to="/profile"
+                      className="block rounded-xl px-3 py-2 text-sm font-medium text-ink hover:bg-cream"
+                    >
+                      Profile
                     </Link>
                     <button
                       onClick={() => {
@@ -160,7 +171,21 @@ export default function Navbar() {
                     onClick={() => setOpen(false)}
                     className="rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-white"
                   >
-                    My tickets
+                    Dashboard
+                  </Link>
+                  <Link
+                    to="/scanner"
+                    onClick={() => setOpen(false)}
+                    className="rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-white"
+                  >
+                    Scan tickets
+                  </Link>
+                  <Link
+                    to="/profile"
+                    onClick={() => setOpen(false)}
+                    className="rounded-xl px-3 py-2.5 text-sm font-semibold text-ink hover:bg-white"
+                  >
+                    Profile
                   </Link>
                   <button
                     onClick={() => {

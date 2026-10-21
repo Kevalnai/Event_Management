@@ -545,6 +545,32 @@ def test_add_organiser_by_unknown_email_returns_404(client, make_user, make_even
     assert denied.status_code == 404
 
 
+def test_my_organised_events_lists_every_event_i_organise(client, make_user, make_event):
+    host, host_headers = make_user("host23")
+    volunteer, volunteer_headers = make_user("vol4")
+    _, outsider_headers = make_user("outsider3")
+
+    event_a = make_event(host_headers, title="Organised Event A")
+    event_b = make_event(host_headers, title="Organised Event B")
+    client.post(
+        f"/events/{event_b['event_id']}/organisers",
+        json={"user_id": volunteer["user_id"], "role": "volunteer"},
+        headers=host_headers,
+    )
+
+    host_list = client.get("/events/me/organised", headers=host_headers).json()
+    assert {e["event"]["event_id"] for e in host_list} == {event_a["event_id"], event_b["event_id"]}
+    assert all(e["role"] == "admin" for e in host_list)
+
+    volunteer_list = client.get("/events/me/organised", headers=volunteer_headers).json()
+    assert len(volunteer_list) == 1
+    assert volunteer_list[0]["event"]["event_id"] == event_b["event_id"]
+    assert volunteer_list[0]["role"] == "volunteer"
+
+    outsider_list = client.get("/events/me/organised", headers=outsider_headers).json()
+    assert outsider_list == []
+
+
 def test_add_organiser_requires_user_id_or_email(client, make_user, make_event):
     _, owner_headers = make_user("host22")
     event = make_event(owner_headers)
