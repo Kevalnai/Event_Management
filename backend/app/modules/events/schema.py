@@ -130,14 +130,6 @@ class EventOrganiserRead(EventOrganiserBase):
     user: OrganiserUserSummary
 
 
-class MyOrganisedEventRead(BaseSchema):
-    """One event this user organises, with their role on it - powers the
-    'My events' tab so a host can find events they don't hold a link to."""
-    role: OrganiserRole
-    added_at: datetime
-    event: EventRead
-
-
 class MyOrganiserRoleRead(BaseSchema):
     """The caller's own organiser role on this event, or null if they have
     none. Purely a UI-visibility hint - every actual management endpoint
@@ -270,3 +262,11 @@ class MyRegistrationRead(BaseSchema):
     qr_code: str
     event: EventRead
     ticket: TicketRead | None = None
+
+
+class MyOrganisedEventRead(BaseSchema):
+    """One event this user organises, with their role on it - powers the
+    'My events' tab so a host can find events they don't hold a link to."""
+    role: OrganiserRole
+    added_at: datetime
+    event: EventRead
