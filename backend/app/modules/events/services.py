@@ -185,6 +185,14 @@ class EventService:
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
 
+        # Free events skip the payment step entirely - Stripe won't even
+        # accept a $0 PaymentIntent, so there's nothing to pay for.
+        initial_status = RegistrationStatus.confirmed if event.price <= 0 else RegistrationStatus.pending
+
+        existing = EventRegistrationRepository.get_by_event_and_user(db, event_id, user_id)
+        if existing:
+            return EventService._reuse_registration(db, existing, payload, initial_status)
+
         registration = EventRegistration(
             event_id=event_id,
             user_id=user_id,
@@ -192,12 +200,49 @@ class EventService:
             email=payload.email,
             phone=payload.phone,
             qr_code=str(uuid4()),
-            # Free events skip the payment step entirely - Stripe won't even
-            # accept a $0 PaymentIntent, so there's nothing to pay for.
-            status=RegistrationStatus.confirmed if event.price <= 0 else RegistrationStatus.pending
+            status=initial_status
         )
 
-        return EventRegistrationRepository.create(db, registration)
+        try:
+            return EventRegistrationRepository.create(db, registration)
+        except IntegrityError:
+            # A simultaneous request for the same user + event committed first
+            # (double-click, retried request). The unique constraint on
+            # (event_id, user_id) rejected this insert - treat it exactly like
+            # finding the existing registration above.
+            db.rollback()
+            existing = EventRegistrationRepository.get_by_event_and_user(db, event_id, user_id)
+            return EventService._reuse_registration(db, existing, payload, initial_status)
+
+    @staticmethod
+    def _reuse_registration(
+        db: Session,
+        registration: EventRegistration,
+        payload: EventRegistrationCreate,
+        initial_status: RegistrationStatus
+    ) -> EventRegistration:
+        """
+        The user already has a registration for this event.
+        - confirmed: they're in - registering again is an error.
+        - pending: they started a paid checkout and didn't finish; hand the
+          same registration back so they resume paying for it, instead of
+          leaving a trail of abandoned duplicates.
+        - cancelled: let them sign up again on the same row.
+        """
+        if registration.status == RegistrationStatus.confirmed:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You're already registered for this event"
+            )
+
+        registration.name = payload.name
+        registration.email = payload.email
+        registration.phone = payload.phone
+        if registration.status == RegistrationStatus.cancelled:
+            registration.status = initial_status
+        db.commit()
+        db.refresh(registration)
+        return registration
 
 
     @staticmethod

@@ -581,3 +581,39 @@ def test_add_organiser_requires_user_id_or_email(client, make_user, make_event):
         headers=owner_headers,
     )
     assert denied.status_code == 422
+
+
+def test_registering_twice_for_a_free_event_is_rejected(client, make_user, make_event):
+    _, owner_headers = make_user("duphost1")
+    _, attendee_headers = make_user("dupattendee1")
+    event = make_event(owner_headers, price=0)
+    body = {"name": "Dup", "email": "dup@example.com", "phone": "555"}
+
+    first = client.post(f"/events/{event['event_id']}/register", json=body, headers=attendee_headers)
+    second = client.post(f"/events/{event['event_id']}/register", json=body, headers=attendee_headers)
+
+    assert first.status_code == 201
+    assert first.json()["status"] == "confirmed"
+    assert second.status_code == 409
+
+
+def test_registering_again_with_unpaid_registration_resumes_it(client, make_user, make_event):
+    _, owner_headers = make_user("duphost2")
+    _, attendee_headers = make_user("dupattendee2")
+    event = make_event(owner_headers, price=25)
+
+    first = client.post(
+        f"/events/{event['event_id']}/register",
+        json={"name": "Old Name", "email": "dup2@example.com", "phone": "555"},
+        headers=attendee_headers,
+    ).json()
+    second = client.post(
+        f"/events/{event['event_id']}/register",
+        json={"name": "New Name", "email": "dup2@example.com", "phone": "555"},
+        headers=attendee_headers,
+    ).json()
+
+    # Same registration handed back so checkout can resume - not a duplicate.
+    assert second["registration_id"] == first["registration_id"]
+    assert second["status"] == "pending"
+    assert second["name"] == "New Name"

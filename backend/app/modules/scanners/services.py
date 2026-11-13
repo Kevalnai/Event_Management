@@ -1,4 +1,5 @@
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -49,7 +50,14 @@ class ScannerService:
         )
 
         db.add(checkin)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Another scanner checked this ticket in between our check above
+            # and this commit; the unique constraint on checkins.registration_id
+            # rejected the second insert. Same outcome as the check above.
+            db.rollback()
+            raise HTTPException(status_code=409, detail="Already checked in")
         db.refresh(checkin)
 
         return checkin

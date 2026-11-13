@@ -33,7 +33,14 @@ from app.core.database import Base, engine, SessionLocal
 
 @pytest.fixture(scope="session", autouse=True)
 def _create_schema():
-    """Tables are created once per test session against the test database."""
+    """
+    Tables are rebuilt once per test session against the test database
+    (DB_NAME is forced to event_management_test at the top of this file).
+    Dropping first means new constraints/columns on the models always reach
+    the test schema - create_all alone skips tables that already exist.
+    """
+    assert engine.url.database == "event_management_test", engine.url.database
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
 
