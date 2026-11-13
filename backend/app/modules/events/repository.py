@@ -143,6 +143,21 @@ class EventRegistrationRepository:
         )
 
     @staticmethod
+    def get_by_event_and_user(
+        db: Session,
+        event_id: UUID,
+        user_id: UUID
+    ) -> EventRegistration | None:
+        return (
+            db.query(EventRegistration)
+            .filter(
+                EventRegistration.event_id == event_id,
+                EventRegistration.user_id == user_id
+            )
+            .first()
+        )
+
+    @staticmethod
     def create(db: Session, registration: EventRegistration) -> EventRegistration:
         db.add(registration)
         db.commit()

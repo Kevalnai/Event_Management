@@ -1,5 +1,5 @@
 #Event models.py
-from sqlalchemy import String, DateTime, Float, func, Boolean, ForeignKey, Text, Enum
+from sqlalchemy import String, DateTime, Float, func, Boolean, ForeignKey, Text, Enum, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -232,6 +232,13 @@ class RegistrationStatus(enum.Enum):
 
 class EventRegistration(Base):
     __tablename__ = "event_registrations"
+    # One registration per user per event, enforced by Postgres itself so two
+    # simultaneous requests (double-click, retry) can't both slip through an
+    # application-level "already registered?" check. Guest registrations have
+    # user_id NULL, and NULLs never conflict, so guests aren't affected.
+    __table_args__ = (
+        UniqueConstraint("event_id", "user_id", name="uq_event_registrations_event_user"),
+    )
 
     registration_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -299,6 +306,13 @@ class EventRegistration(Base):
 
 class CheckIn(Base):
     __tablename__ = "checkins"
+    # A ticket can be checked in once. The scanner checks for an existing
+    # check-in first, but two gates scanning the same ticket at the same
+    # instant can both pass that check - this constraint is what actually
+    # guarantees only one insert wins.
+    __table_args__ = (
+        UniqueConstraint("registration_id", name="uq_checkins_registration_id"),
+    )
 
     checkin_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
